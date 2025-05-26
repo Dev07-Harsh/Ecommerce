@@ -259,8 +259,6 @@ const BrandCreation: React.FC = () => {
             setSubmitSuccess(true);
             setBrands([...brands, newBrand]);
             toast.success('Brand created successfully');
-            
-            // Reset form
             resetForm();
             
             // Refresh brands list
@@ -396,6 +394,9 @@ const BrandCreation: React.FC = () => {
         setSelectedCategories([]);
         setBrandImage(null);
         setBrandImagePreview(null);
+        setShowAddBrandForm(false);
+        setSubmitSuccess(false);
+        setSubmitError('');
         setShowAddBrandForm(false);
     };
 
