@@ -774,7 +774,7 @@ const ProductVariants: React.FC<ProductVariantsProps> = ({
         return;
     }
     
-    formData.append('type', isVideo ? 'VIDEO' : 'IMAGE');
+    formData.append('type', isVideo ? 'video' : 'image');
     formData.append('display_order', '0');
     formData.append('is_primary', 'false');
 
