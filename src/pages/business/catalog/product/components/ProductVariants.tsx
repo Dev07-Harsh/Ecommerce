@@ -1,12 +1,24 @@
-import React, { useState, useEffect } from 'react';
-import { PlusIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import React, { useState, useEffect, useCallback } from 'react';
+import { PlusIcon, XMarkIcon, CloudArrowUpIcon, PlayIcon } from '@heroicons/react/24/outline';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import { StarIcon } from '@heroicons/react/24/outline';
+import { useDropzone } from 'react-dropzone';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-interface VariantAttribute {
+interface AttributeValue {
+  value_code: string;
+  value_label: string;
+}
+
+interface Attribute {
+  attribute_id: number;
   name: string;
+  type: 'text' | 'number' | 'select' | 'multiselect' | 'boolean';
+  options: string[] | null;
+  required: boolean;
+  help_text: string | null;
+  values?: AttributeValue[];
 }
 
 interface VariantMedia {
@@ -23,7 +35,7 @@ interface Variant {
   sku: string;
   price: string;
   stock: string;
-  attributes: VariantAttribute[];
+  attributes: Record<number, string | string[]>;
   media?: VariantMedia[];
 }
 
@@ -44,15 +56,7 @@ interface ProductVariantsProps {
     };
   };
   categoryId: number | null;
-}
-
-interface Attribute {
-  attribute_id: number;
-  name: string;
-  type: 'text' | 'number' | 'select' | 'multiselect' | 'boolean';
-  options: string[] | null;
-  required: boolean;
-  help_text: string | null;
+  baseSku: string;
 }
 
 interface AddVariantModalProps {
@@ -62,9 +66,10 @@ interface AddVariantModalProps {
     sku: string;
     price: string;
     stock: string;
-    attributes: Array<{ name: string }>;
+    attributes: Record<number, string | string[]>;
   }) => void;
   categoryId: number | null;
+  baseSku: string;
 }
 
 const AddVariantModal: React.FC<AddVariantModalProps> = ({
@@ -72,6 +77,7 @@ const AddVariantModal: React.FC<AddVariantModalProps> = ({
   onClose,
   onAdd,
   categoryId,
+  baseSku,
 }) => {
   const [sku, setSku] = useState('');
   const [price, setPrice] = useState('');
@@ -80,15 +86,29 @@ const AddVariantModal: React.FC<AddVariantModalProps> = ({
   const [selectedAttributes, setSelectedAttributes] = useState<Record<number, string | string[]>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [expandedAttributes, setExpandedAttributes] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     if (categoryId) {
       fetchAttributes(categoryId);
-    } else {
-      setAttributes([]);
     }
   }, [categoryId]);
+
+  useEffect(() => {
+    if (baseSku && Object.keys(selectedAttributes).length > 0) {
+      const attributeValues = Object.entries(selectedAttributes)
+        .map(([_, value]) => {
+          if (Array.isArray(value)) {
+            return value.map(v => v.slice(0, 3).toUpperCase()).join('-');
+          }
+          return value.slice(0, 3).toUpperCase();
+        })
+        .join('-');
+      
+      setSku(`${baseSku}-${attributeValues}`);
+    } else {
+      setSku(baseSku || '');
+    }
+  }, [selectedAttributes, baseSku]);
 
   const fetchAttributes = async (categoryId: number) => {
     try {
@@ -106,7 +126,27 @@ const AddVariantModal: React.FC<AddVariantModalProps> = ({
       }
 
       const data = await response.json();
-      setAttributes(data);
+      const attributesWithValues = await Promise.all(
+        data.map(async (attr: Attribute) => {
+          if (attr.type === 'select' || attr.type === 'multiselect') {
+            const valuesResponse = await fetch(
+              `${API_BASE_URL}/api/merchant-dashboard/attributes/${attr.attribute_id}/values`,
+              {
+                headers: {
+                  'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+                  'Content-Type': 'application/json',
+                },
+              }
+            );
+            if (valuesResponse.ok) {
+              const values = await valuesResponse.json();
+              return { ...attr, values };
+            }
+          }
+          return attr;
+        })
+      );
+      setAttributes(attributesWithValues);
     } catch (error) {
       console.error('Error fetching attributes:', error);
       setError('Failed to load attributes. Please try again later.');
@@ -115,19 +155,7 @@ const AddVariantModal: React.FC<AddVariantModalProps> = ({
     }
   };
 
-  const toggleAttribute = (attributeId: number) => {
-    setExpandedAttributes(prev => {
-      const next = new Set(prev);
-      if (next.has(attributeId)) {
-        next.delete(attributeId);
-      } else {
-        next.add(attributeId);
-      }
-      return next;
-    });
-  };
-
-  const handleValueSelect = (attribute: Attribute, value: string) => {
+  const handleAttributeSelect = (attribute: Attribute, value: string) => {
     if (attribute.type === 'multiselect') {
       const currentValues = (selectedAttributes[attribute.attribute_id] as string[]) || [];
       const newValues = currentValues.includes(value)
@@ -145,116 +173,14 @@ const AddVariantModal: React.FC<AddVariantModalProps> = ({
     }
   };
 
-  const renderAttributeValue = (attribute: Attribute) => {
-    switch (attribute.type) {
-      case 'multiselect':
-        return (
-          <div className="mt-2 space-y-2">
-            {attribute.options?.map((option, index) => {
-              const selectedValues = (selectedAttributes[attribute.attribute_id] as string[]) || [];
-              const isSelected = selectedValues.includes(option);
-              return (
-                <div
-                  key={index}
-                  className={`px-3 py-2 rounded-md cursor-pointer flex items-center ${
-                    isSelected ? 'bg-primary-50 text-primary-700' : 'hover:bg-gray-50'
-                  }`}
-                  onClick={() => handleValueSelect(attribute, option)}
-                >
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    onChange={() => {}}
-                    className="mr-2 h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                  />
-                  {option}
-                </div>
-              );
-            })}
-          </div>
-        );
-
-      case 'select':
-        return (
-          <div className="mt-2 space-y-2">
-            {attribute.options?.map((option, index) => (
-              <div
-                key={index}
-                className={`px-3 py-2 rounded-md cursor-pointer ${
-                  selectedAttributes[attribute.attribute_id] === option
-                    ? 'bg-primary-50 text-primary-700'
-                    : 'hover:bg-gray-50'
-                }`}
-                onClick={() => handleValueSelect(attribute, option)}
-              >
-                {option}
-              </div>
-            ))}
-          </div>
-        );
-
-      case 'number':
-        return (
-          <div className="mt-2">
-            <input
-              type="number"
-              value={selectedAttributes[attribute.attribute_id] as string || ''}
-              onChange={(e) => handleValueSelect(attribute, e.target.value)}
-              placeholder={`Enter ${attribute.name.toLowerCase()}`}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            />
-          </div>
-        );
-
-      case 'boolean':
-        return (
-          <div className="mt-2">
-            <label className="inline-flex items-center">
-              <input
-                type="checkbox"
-                checked={selectedAttributes[attribute.attribute_id] === 'true'}
-                onChange={(e) => handleValueSelect(attribute, e.target.checked.toString())}
-                className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-              />
-              <span className="ml-2 text-gray-700">Yes</span>
-            </label>
-          </div>
-        );
-
-      default: // text
-        return (
-          <div className="mt-2">
-            <input
-              type="text"
-              value={selectedAttributes[attribute.attribute_id] as string || ''}
-              onChange={(e) => handleValueSelect(attribute, e.target.value)}
-              placeholder={`Enter ${attribute.name.toLowerCase()}`}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            />
-          </div>
-        );
-    }
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Convert selected attributes to the required format
-    const formattedAttributes = Object.entries(selectedAttributes).map(([attributeId, value]) => {
-      const attribute = attributes.find(attr => attr.attribute_id === parseInt(attributeId));
-      return {
-        name: attribute?.name || ''
-      };
-    });
-
     onAdd({
       sku,
       price,
       stock,
-      attributes: formattedAttributes,
+      attributes: selectedAttributes,
     });
-
-    // Reset form
     setSku('');
     setPrice('');
     setStock('');
@@ -287,9 +213,13 @@ const AddVariantModal: React.FC<AddVariantModalProps> = ({
                 id="sku"
                 value={sku}
                 onChange={(e) => setSku(e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm bg-gray-50"
                 required
+                readOnly
               />
+              <p className="text-xs text-gray-500 mt-1">
+                SKU is automatically generated based on base SKU and selected attributes
+              </p>
             </div>
 
             <div>
@@ -324,55 +254,81 @@ const AddVariantModal: React.FC<AddVariantModalProps> = ({
             </div>
           </div>
 
-          <div className="space-y-4">
-            <h3 className="text-sm font-medium text-gray-700">Attributes</h3>
-            
-            {isLoading ? (
-              <div className="flex justify-center py-4">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-              </div>
-            ) : error ? (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-red-700">{error}</p>
-              </div>
-            ) : attributes.length === 0 ? (
-              <div className="p-4 text-center text-gray-500">
-                No attributes available for this category
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {attributes.map((attribute) => (
-                  <div key={attribute.attribute_id} className="border rounded-lg overflow-hidden">
-                    <div
-                      className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50"
-                      onClick={() => toggleAttribute(attribute.attribute_id)}
-                    >
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-900">{attribute.name}</h3>
-                        {attribute.required && (
-                          <span className="text-xs text-red-600">Required</span>
-                        )}
-                        {attribute.help_text && (
-                          <p className="text-xs text-gray-500 mt-1">{attribute.help_text}</p>
-                        )}
-                      </div>
-                      <button className="p-1 hover:bg-gray-100 rounded">
-                        {expandedAttributes.has(attribute.attribute_id) ? (
-                          <ChevronDownIcon className="h-4 w-4 text-gray-500" />
-                        ) : (
-                          <ChevronRightIcon className="h-4 w-4 text-gray-500" />
-                        )}
-                      </button>
+          {/* Attributes Section */}
+          <div className="mt-6">
+            <h3 className="text-sm font-medium text-gray-900 mb-4">Attributes</h3>
+            <div className="space-y-4">
+              {attributes.map((attribute) => (
+                <div key={attribute.attribute_id} className="border rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-900">{attribute.name}</h4>
+                      {attribute.required && (
+                        <span className="text-xs text-red-600">Required</span>
+                      )}
                     </div>
-                    {expandedAttributes.has(attribute.attribute_id) && (
-                      <div className="px-4 pb-4">
-                        {renderAttributeValue(attribute)}
+                  </div>
+
+                  <div className="mt-2">
+                    {attribute.type === 'multiselect' ? (
+                      <div className="space-y-2">
+                        {attribute.options?.map((option, index) => {
+                          const selectedValues = (selectedAttributes[attribute.attribute_id] as string[]) || [];
+                          const isSelected = selectedValues.includes(option);
+                          return (
+                            <div
+                              key={index}
+                              className={`px-3 py-2 rounded-md cursor-pointer flex items-center ${
+                                isSelected ? 'bg-primary-50 text-primary-700' : 'hover:bg-gray-50'
+                              }`}
+                              onClick={() => handleAttributeSelect(attribute, option)}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => {}}
+                                className="mr-2 h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                              />
+                              {option}
+                            </div>
+                          );
+                        })}
                       </div>
+                    ) : attribute.type === 'select' ? (
+                      <div className="space-y-2">
+                        {attribute.options?.map((option, index) => (
+                          <div
+                            key={index}
+                            className={`px-3 py-2 rounded-md cursor-pointer ${
+                              selectedAttributes[attribute.attribute_id] === option
+                                ? 'bg-primary-50 text-primary-700'
+                                : 'hover:bg-gray-50'
+                            }`}
+                            onClick={() => handleAttributeSelect(attribute, option)}
+                          >
+                            {option}
+                          </div>
+                        ))}
+                      </div>
+                    ) : attribute.type === 'number' ? (
+                      <input
+                        type="number"
+                        value={selectedAttributes[attribute.attribute_id] as string || ''}
+                        onChange={(e) => handleAttributeSelect(attribute, e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        value={selectedAttributes[attribute.attribute_id] as string || ''}
+                        onChange={(e) => handleAttributeSelect(attribute, e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      />
                     )}
                   </div>
-                ))}
-              </div>
-            )}
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="flex justify-end space-x-3 mt-6">
@@ -402,16 +358,15 @@ const ProductVariants: React.FC<ProductVariantsProps> = ({
   onVariantsChange,
   errors = {},
   categoryId,
+  baseSku,
 }) => {
-  const [newAttributeName, setNewAttributeName] = useState('');
-  const [newAttributeValue, setNewAttributeValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedVariantForMedia, setSelectedVariantForMedia] = useState<string | null>(null);
   const [mediaStats, setMediaStats] = useState<{[key: string]: any}>({});
   const [isUploading, setIsUploading] = useState<{[key: string]: boolean}>({});
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (productId) {
@@ -424,38 +379,32 @@ const ProductVariants: React.FC<ProductVariantsProps> = ({
       setIsLoading(true);
       setError(null);
 
-      const response = await fetch(`${API_BASE_URL}/api/merchant-dashboard/products/${productId}/variants`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      // Only fetch variants if there are existing variants
+      if (variants.length > 0) {
+        const response = await fetch(`${API_BASE_URL}/api/merchant-dashboard/products/${productId}/variants`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+            'Content-Type': 'application/json',
+          },
+        });
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch variants');
+        if (!response.ok) {
+          throw new Error('Failed to fetch variants');
+        }
+
+        const data = await response.json();
+        const formattedVariants = data.map((variant: any) => ({
+          variant_id: variant.product_id,
+          id: variant.product_id.toString(),
+          sku: variant.sku || '',
+          price: variant.selling_price?.toString() || '',
+          stock: variant.stock_qty?.toString() || '',
+          attributes: variant.attributes || {},
+          media: variant.media || []
+        }));
+
+        onVariantsChange(formattedVariants);
       }
-
-      const data = await response.json();
-      const formattedVariants = data.map((variant: any) => ({
-        variant_id: variant.variant_id,
-        id: variant.variant_id.toString(),
-        sku: variant.sku || '',
-        price: variant.price?.toString() || '',
-        stock: variant.stock?.toString() || '',
-        attributes: Object.entries(variant.attributes || {}).map(([name, value]) => ({
-          name,
-          value: value as string
-        })),
-        media: variant.media?.map((media: any) => ({
-          media_id: media.media_id,
-          media_url: media.media_url,
-          media_type: media.media_type,
-          is_primary: media.is_primary,
-          display_order: media.display_order
-        }))
-      }));
-
-      onVariantsChange(formattedVariants);
     } catch (error) {
       console.error('Error fetching variants:', error);
       setError('Failed to load variants. Please try again.');
@@ -468,34 +417,25 @@ const ProductVariants: React.FC<ProductVariantsProps> = ({
     sku: string;
     price: string;
     stock: string;
-    attributes: Array<{ name: string }>;
+    attributes: Record<number, string | string[]>;
   }) => {
     try {
       setIsLoading(true);
       setError(null);
 
-      // Debug: Log input data
-      console.log('Variant Data Input:', variantData);
-
-      // Ensure we have the required fields
-      if (!variantData.sku || !variantData.attributes[0]?.name) {
-        throw new Error('SKU and attribute are required');
-      }
-
       const newVariant = {
         sku: variantData.sku,
-        attribute: variantData.attributes[0].name,
-        price: variantData.price // Send as string
+        stock_qty: parseInt(variantData.stock),
+        selling_price: parseFloat(variantData.price),
+        attributes: Object.fromEntries(
+          Object.entries(variantData.attributes).map(([key, value]) => [
+            parseInt(key),
+            value
+          ])
+        )
       };
 
-      // Debug: Log request payload
-      console.log('Request Payload:', newVariant);
-
-      // Fix double slash in URL
-      const url = `${API_BASE_URL}/api/merchant-dashboard/products/${productId}/variants`.replace(/([^:]\/)\/+/g, "$1");
-      console.log('Request URL:', url);
-
-      const response = await fetch(url, {
+      const response = await fetch(`${API_BASE_URL}/api/merchant-dashboard/products/${productId}/variants`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
@@ -504,43 +444,36 @@ const ProductVariants: React.FC<ProductVariantsProps> = ({
         body: JSON.stringify(newVariant),
       });
 
-      // Debug: Log response status
-      console.log('Response Status:', response.status);
-
       if (!response.ok) {
         const errorData = await response.json();
-        // Debug: Log error response
-        console.error('Error Response:', errorData);
         throw new Error(errorData.message || 'Failed to create variant');
       }
 
       const createdVariant = await response.json();
-      // Debug: Log successful response
-      console.log('Created Variant:', createdVariant);
+      const newProductId = createdVariant.product_id;
       
+      // Format the variant data for the frontend
       const formattedVariant = {
-        variant_id: createdVariant.variant_id,
-        id: createdVariant.variant_id.toString(),
-        sku: createdVariant.sku || '',
-        price: createdVariant.price?.toString() || '0.00',
-        stock: createdVariant.stock?.toString() || '0',
-        attributes: [{ name: createdVariant.attribute }],
-        media: createdVariant.media?.map((media: any) => ({
-          media_id: media.media_id,
-          media_url: media.media_url,
-          media_type: media.media_type,
-          is_primary: media.is_primary,
-          display_order: media.display_order
-        }))
+        variant_id: newProductId,
+        id: newProductId.toString(),
+        sku: createdVariant.sku,
+        price: createdVariant.selling_price.toString(),
+        stock: createdVariant.stock?.stock_qty?.toString() || '0',
+        attributes: createdVariant.attributes || {},
+        media: []
       };
 
+      // Add the new variant to the list
       onVariantsChange([...variants, formattedVariant]);
+      
+      // Fetch media stats for the new variant
+      await fetchMediaStats(newProductId);
+
       setSuccess('Variant created successfully');
       setIsModalOpen(false);
+
     } catch (error) {
-      // Debug: Log full error details
-      console.error('Full Error Details:', error);
-      console.error('Error Stack:', error instanceof Error ? error.stack : 'No stack trace');
+      console.error('Error creating variant:', error);
       setError(error instanceof Error ? error.message : 'Failed to create variant. Please try again.');
     } finally {
       setIsLoading(false);
@@ -592,8 +525,7 @@ const ProductVariants: React.FC<ProductVariantsProps> = ({
       const updateData = {
         sku: field === 'sku' ? value : variant.sku,
         price: field === 'price' ? parseFloat(value) || 0 : parseFloat(variant.price) || 0,
-        stock: field === 'stock' ? parseInt(value) || 0 : parseInt(variant.stock) || 0,
-        attribute: variant.attributes[0]?.name || ''
+        stock: field === 'stock' ? parseInt(value) || 0 : parseInt(variant.stock) || 0
       };
 
       const response = await fetch(`${API_BASE_URL}/api/merchant-dashboard/products/variants/${variant.variant_id}`, {
@@ -624,119 +556,9 @@ const ProductVariants: React.FC<ProductVariantsProps> = ({
     }
   };
 
-  const handleAddAttribute = async (variantId: string) => {
-    if (!newAttributeName || !newAttributeValue) return;
-
-    const variant = variants.find(v => v.id === variantId);
-    if (!variant?.variant_id) return;
-
+  const fetchMediaStats = async (productId: number) => {
     try {
-      setIsLoading(true);
-      setError(null);
-
-      const updatedAttributes = [
-        ...variant.attributes,
-        { name: newAttributeName, value: newAttributeValue }
-      ];
-
-      const attributes = updatedAttributes.reduce((acc, attr) => ({
-        ...acc,
-        [attr.name]: attr.name
-
-      }), {});
-
-      const response = await fetch(`${API_BASE_URL}/api/merchant-dashboard/products/variants/${variant.variant_id}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          sku: variant.sku,
-          price: parseFloat(variant.price) || 0,
-          attributes
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update variant attributes');
-      }
-
-      onVariantsChange(
-        variants.map((v) =>
-          v.id === variantId
-            ? {
-                ...v,
-                attributes: updatedAttributes,
-              }
-            : v
-        )
-      );
-
-      setNewAttributeName('');
-      setNewAttributeValue('');
-      setSuccess('Attribute added successfully');
-    } catch (error) {
-      console.error('Error adding attribute:', error);
-      setError('Failed to add attribute. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleRemoveAttribute = async (variantId: string, attributeName: string) => {
-    const variant = variants.find(v => v.id === variantId);
-    if (!variant?.variant_id) return;
-
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      const updatedAttributes = variant.attributes.filter((a) => a.name !== attributeName);
-      const attributes = updatedAttributes.reduce((acc, attr) => ({
-        ...acc,
-        [attr.name]: attr.name
-      }), {});
-
-      const response = await fetch(`${API_BASE_URL}/api/merchant-dashboard/products/variants/${variant.variant_id}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          sku: variant.sku,
-          price: parseFloat(variant.price) || 0,
-          attributes
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to remove attribute');
-      }
-
-      onVariantsChange(
-        variants.map((v) =>
-          v.id === variantId
-            ? {
-                ...v,
-                attributes: updatedAttributes,
-              }
-            : v
-        )
-      );
-      setSuccess('Attribute removed successfully');
-    } catch (error) {
-      console.error('Error removing attribute:', error);
-      setError('Failed to remove attribute. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchMediaStats = async (variantId: number) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/merchant-dashboard/products/variants/${variantId}/media/stats`, {
+      const response = await fetch(`${API_BASE_URL}/api/merchant-dashboard/products/${productId}/media/stats`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json',
@@ -750,76 +572,97 @@ const ProductVariants: React.FC<ProductVariantsProps> = ({
       const stats = await response.json();
       setMediaStats(prev => ({
         ...prev,
-        [variantId]: stats
+        [productId]: stats
       }));
     } catch (error) {
       console.error('Error fetching media stats:', error);
     }
   };
 
-  const handleMediaUpload = async (variantId: number, file: File) => {
-    if (!variantId) return;
-
-    setIsUploading(prev => ({ ...prev, [variantId]: true }));
-    const formData = new FormData();
-    formData.append('media_file', file);
-    
-    // Detect media type based on file type
-    const isVideo = file.type.startsWith('video/');
-    const isImage = file.type.startsWith('image/');
-    
-    if (!isVideo && !isImage) {
-        setError('Invalid file type. Please upload an image or video.');
-        setIsUploading(prev => ({ ...prev, [variantId]: false }));
-        return;
+  const onDrop = useCallback(async (acceptedFiles: File[], productId: number) => {
+    if (!productId) {
+      setError('Product ID is required for media upload');
+      return;
     }
-    
-    formData.append('type', isVideo ? 'video' : 'image');
-    formData.append('display_order', '0');
-    formData.append('is_primary', 'false');
 
+    const stats = mediaStats[productId];
+    if (!stats || stats.remaining_slots < acceptedFiles.length) {
+      const errorMsg = `You can only upload up to ${stats?.remaining_slots || 0} more files.`;
+      setError(errorMsg);
+      return;
+    }
+
+    setIsUploading(prev => ({ ...prev, [productId]: true }));
+    setError(null);
+
+    let updatedVariants = [...variants];
     try {
-        const response = await fetch(`${API_BASE_URL}/api/merchant-dashboard/products/variants/${variantId}/media`, {
+      for (const file of acceptedFiles) {
+        try {
+          setUploadProgress(prev => ({ ...prev, [file.name]: 0 }));
+          
+          const formData = new FormData();
+          formData.append('media_file', file);
+          formData.append('type', file.type.startsWith('video/') ? 'VIDEO' : 'IMAGE');
+          formData.append('sort_order', '0');
+
+          const response = await fetch(`${API_BASE_URL}/api/merchant-dashboard/products/${productId}/media`, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+              'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
             },
             body: formData,
-        });
+          });
 
-        if (!response.ok) {
+          if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.message || 'Failed to upload media');
-        }
+            throw new Error(errorData.message || `Failed to upload ${file.name}`);
+          }
 
-        const newMedia = await response.json();
-        const updatedVariants = variants.map(v => {
-            if (v.variant_id === variantId) {
-                return {
-                    ...v,
-                    media: [...(v.media || []), newMedia]
-                };
+          const newMedia = await response.json();
+          // Update variants with new media
+          updatedVariants = updatedVariants.map(v => {
+            if (v.variant_id === productId) {
+              return {
+                ...v,
+                media: [...(v.media || []), {
+                  media_id: newMedia.media_id,
+                  media_url: newMedia.url,
+                  media_type: newMedia.type,
+                  is_primary: newMedia.is_primary,
+                  display_order: newMedia.sort_order
+                }]
+              };
             }
             return v;
-        });
-
-        onVariantsChange(updatedVariants);
-        await fetchMediaStats(variantId);
-    } catch (error) {
-        console.error('Error uploading media:', error);
-        setError(error instanceof Error ? error.message : 'Failed to upload media. Please try again.');
+          });
+          onVariantsChange(updatedVariants);
+          await fetchMediaStats(productId);
+          setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
+        } catch (error) {
+          console.error(`Error uploading ${file.name}:`, error);
+          setError(`Failed to upload ${file.name}. Please try again.`);
+        }
+      }
     } finally {
-        setIsUploading(prev => ({ ...prev, [variantId]: false }));
+      setIsUploading(prev => ({ ...prev, [productId]: false }));
+      // Clear upload progress for this variant after a short delay
+      setTimeout(() => {
+        setUploadProgress(prev => {
+          const newProgress = { ...prev };
+          acceptedFiles.forEach(f => { delete newProgress[f.name]; });
+          return newProgress;
+        });
+      }, 1000);
     }
-  };
+  }, [variants, mediaStats, onVariantsChange]);
 
-  const handleDeleteMedia = async (variantId: number, mediaId: number) => {
+  const removeMedia = async (productId: number, mediaId: number) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/merchant-dashboard/products/variants/media/${mediaId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/merchant-dashboard/products/media/${mediaId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-          'Content-Type': 'application/json',
         },
       });
 
@@ -828,7 +671,7 @@ const ProductVariants: React.FC<ProductVariantsProps> = ({
       }
 
       const updatedVariants = variants.map(v => {
-        if (v.variant_id === variantId) {
+        if (v.variant_id === productId) {
           return {
             ...v,
             media: (v.media || []).filter(m => m.media_id !== mediaId)
@@ -838,16 +681,16 @@ const ProductVariants: React.FC<ProductVariantsProps> = ({
       });
 
       onVariantsChange(updatedVariants);
-      await fetchMediaStats(variantId);
+      await fetchMediaStats(productId);
     } catch (error) {
       console.error('Error deleting media:', error);
       setError('Failed to delete media. Please try again.');
     }
   };
 
-  const handleSetPrimaryMedia = async (variantId: number, mediaId: number) => {
+  const handleSetPrimaryMedia = async (productId: number, mediaId: number) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/merchant-dashboard/products/variants/${variantId}/media/${mediaId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/merchant-dashboard/products/${productId}/media/${mediaId}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
@@ -861,7 +704,7 @@ const ProductVariants: React.FC<ProductVariantsProps> = ({
       }
 
       const updatedVariants = variants.map(v => {
-        if (v.variant_id === variantId) {
+        if (v.variant_id === productId) {
           return {
             ...v,
             media: (v.media || []).map(m => ({
@@ -946,11 +789,12 @@ const ProductVariants: React.FC<ProductVariantsProps> = ({
                   onChange={(e) =>
                     handleVariantChange(variant.id, 'sku', e.target.value)
                   }
-                  className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm ${
+                  className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm bg-gray-50 ${
                     errors.variants?.[variant.id]?.sku
                       ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
                       : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500'
                   }`}
+                  readOnly
                 />
                 {errors.variants?.[variant.id]?.sku && (
                   <p className="mt-1 text-sm text-red-600">
@@ -1026,21 +870,26 @@ const ProductVariants: React.FC<ProductVariantsProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {/* Media Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
                 {variant.media?.map((media) => (
-                  <div key={media.media_id} className="relative group">
-                    {media.media_type === 'IMAGE' ? (
+                  <div key={media.media_id} className="relative group aspect-square rounded-lg overflow-hidden bg-gray-100">
+                    {media.media_type.toLowerCase() === 'image' ? (
                       <img
                         src={media.media_url}
                         alt="Variant media"
-                        className="w-full h-32 object-cover rounded-lg"
+                        className="w-full h-full object-cover"
                       />
                     ) : (
-                      <video
-                        src={media.media_url}
-                        className="w-full h-32 object-cover rounded-lg"
-                        controls
-                      />
+                      <div className="relative w-full h-full">
+                        <video
+                          src={media.media_url}
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <PlayIcon className="h-12 w-12 text-white opacity-75" />
+                        </div>
+                      </div>
                     )}
                     <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-opacity duration-200 rounded-lg flex items-center justify-center">
                       <div className="hidden group-hover:flex space-x-2">
@@ -1054,7 +903,7 @@ const ProductVariants: React.FC<ProductVariantsProps> = ({
                           </button>
                         )}
                         <button
-                          onClick={() => handleDeleteMedia(variant.variant_id!, media.media_id)}
+                          onClick={() => removeMedia(variant.variant_id!, media.media_id)}
                           className="p-1 bg-white rounded-full hover:bg-gray-100"
                           title="Delete"
                         >
@@ -1071,72 +920,25 @@ const ProductVariants: React.FC<ProductVariantsProps> = ({
                 ))}
 
                 {mediaStats[variant.variant_id || '']?.remaining_slots > 0 && (
-                  <label className="border-2 border-dashed border-gray-300 rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer hover:border-primary-500">
-                    <input
-                      type="file"
-                      className="hidden"
-                      accept="image/*,video/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          handleMediaUpload(variant.variant_id!, file);
-                        }
-                      }}
-                    />
-                    <PlusIcon className="h-8 w-8 text-gray-400" />
-                    <span className="mt-2 text-sm text-gray-600">Add Media</span>
-                  </label>
+                  <VariantDropzone
+                    variantId={variant.variant_id!}
+                    isUploading={isUploading[variant.variant_id || '']}
+                    onDrop={onDrop}
+                    disabled={isUploading[variant.variant_id || '']}
+                  />
                 )}
               </div>
-            </div>
 
-            {/* Attributes */}
-            <div className="space-y-4">
-              <h4 className="text-sm font-medium text-gray-700">Attributes</h4>
-              <div className="space-y-2">
-                {variant.attributes.map((attr) => (
+              {/* Upload Progress */}
+              {Object.entries(uploadProgress).map(([fileName, progress]) => (
+                <div key={fileName} className="w-full bg-gray-200 rounded-full h-2.5">
                   <div
-                    key={attr.name}
-                    className="flex items-center space-x-2 bg-gray-50 p-2 rounded"
-                  >
-                    <span className="text-sm font-medium text-gray-700">
-                      {attr.name}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveAttribute(variant.id, attr.name)}
-                      className="text-gray-400 hover:text-red-500"
-                    >
-                      <XMarkIcon className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              {/* Add Attribute Form */}
-              <div className="flex space-x-2">
-                <input
-                  type="text"
-                  value={newAttributeName}
-                  onChange={(e) => setNewAttributeName(e.target.value)}
-                  placeholder="Attribute name"
-                  className="block w-full rounded-md shadow-sm sm:text-sm border-gray-300 focus:border-primary-500 focus:ring-primary-500"
-                />
-                <input
-                  type="text"
-                  value={newAttributeValue}
-                  onChange={(e) => setNewAttributeValue(e.target.value)}
-                  placeholder="Attribute value"
-                  className="block w-full rounded-md shadow-sm sm:text-sm border-gray-300 focus:border-primary-500 focus:ring-primary-500"
-                />
-                <button
-                  type="button"
-                  onClick={() => handleAddAttribute(variant.id)}
-                  className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                >
-                  Add
-                </button>
-              </div>
+                    className="bg-primary-600 h-2.5 rounded-full transition-all duration-300"
+                    style={{ width: `${progress}%` }}
+                  ></div>
+                  <p className="text-xs text-gray-500 mt-1">{fileName}</p>
+                </div>
+              ))}
             </div>
           </div>
         ))}
@@ -1158,7 +960,50 @@ const ProductVariants: React.FC<ProductVariantsProps> = ({
         onClose={() => setIsModalOpen(false)}
         onAdd={handleAddVariant}
         categoryId={categoryId}
+        baseSku={baseSku}
       />
+    </div>
+  );
+};
+
+const VariantDropzone: React.FC<{
+  variantId: number;
+  isUploading: boolean;
+  onDrop: (files: File[], variantId: number) => void;
+  disabled: boolean;
+}> = ({ variantId, isUploading, onDrop, disabled }) => {
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop: (files) => onDrop(files, variantId),
+    accept: {
+      'image/*': ['.jpeg', '.jpg', '.png', '.gif', '.webp'],
+      'video/*': ['.mp4', '.mov', '.avi'],
+    },
+    maxSize: 10 * 1024 * 1024, // 10MB
+    disabled: disabled || isUploading,
+  });
+
+  return (
+    <div
+      {...getRootProps()}
+      className={`border-2 border-dashed rounded-lg p-4 flex flex-col items-center justify-center transition-colors ${
+        disabled || isUploading
+          ? 'border-gray-300 bg-gray-50 cursor-not-allowed'
+          : isDragActive
+          ? 'border-primary-500 bg-primary-50 cursor-pointer'
+          : 'border-gray-300 hover:border-primary-500 cursor-pointer'
+      }`}
+    >
+      <input {...getInputProps()} />
+      <CloudArrowUpIcon className={`h-8 w-8 ${disabled || isUploading ? 'text-gray-400' : 'text-gray-400'}`} />
+      <span className="mt-2 text-sm text-gray-600">
+        {isUploading
+          ? 'Uploading...'
+          : disabled
+          ? 'Maximum files reached'
+          : isDragActive
+          ? 'Drop files here'
+          : 'Click or drag files'}
+      </span>
     </div>
   );
 };

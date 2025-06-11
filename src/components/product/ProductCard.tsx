@@ -1,8 +1,10 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Heart, ShoppingCart } from 'lucide-react';
 import { Product } from '../../types';
 import { useCart } from '../../context/CartContext';
+import { useAuth } from '../../context/AuthContext';
+import { useWishlist } from '../../context/WishlistContext';
 import { toast } from 'react-hot-toast';
 
 interface ProductCardProps {
@@ -19,18 +21,79 @@ const ProductCard: React.FC<ProductCardProps> = ({
   salePercentage
 }) => {
   const { addToCart } = useCart();
+  const { isAuthenticated, user } = useAuth();
+  const { 
+    addToWishlist, 
+    removeFromWishlist, 
+    isInWishlist, 
+    loading: wishlistLoading,
+    wishlistItems 
+  } = useWishlist();
+  const navigate = useNavigate();
 
-  const handleAddToCart = (e: React.MouseEvent) => {
+  const handleAddToCart = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    addToCart(product, 1);
-    toast.success(`${product.name} added to cart`);
+    
+    if (!isAuthenticated) {
+      toast.error('Please sign in to add items to cart');
+      // Store the current URL to redirect back after sign in
+      const returnUrl = encodeURIComponent(window.location.pathname);
+      navigate(`/sign-in?returnUrl=${returnUrl}`);
+      return;
+    }
+
+    // Check if user is a merchant or admin (they shouldn't be able to add to cart)
+    if (user?.role === 'merchant' || user?.role === 'admin') {
+      toast.error('Merchants and admins cannot add items to cart');
+      return;
+    }
+    
+    try {
+      await addToCart(product, 1);
+      toast.success(`${product.name} added to cart`);
+    } catch (error) {
+      toast.error('Failed to add item to cart');
+    }
   };
 
-  const handleWishlist = (e: React.MouseEvent) => {
+  const handleWishlist = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    toast.success(`${product.name} added to wishlist`);
+    
+    if (!isAuthenticated) {
+      toast.error('Please sign in to add items to wishlist');
+      const returnUrl = encodeURIComponent(window.location.pathname);
+      navigate(`/sign-in?returnUrl=${returnUrl}`);
+      return;
+    }
+
+    // Check if user is a merchant or admin
+    if (user?.role === 'merchant' || user?.role === 'admin') {
+      toast.error('Merchants and admins cannot add items to wishlist');
+      return;
+    }
+    
+    try {
+      const productId = Number(product.id);
+      const isInWishlistItem = isInWishlist(productId);
+      
+      if (isInWishlistItem) {
+        // Find the wishlist item ID from the wishlist items
+        const wishlistItem = wishlistItems.find(item => item.product_id === productId);
+        if (wishlistItem) {
+          await removeFromWishlist(wishlistItem.wishlist_item_id);
+          toast.success('Product removed from wishlist');
+        }
+      } else {
+        console.log('Attempting to add to wishlist, product ID:', productId);
+        await addToWishlist(productId);
+        toast.success('Product added to wishlist');
+      }
+    } catch (error) {
+      console.error('Wishlist error details:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to update wishlist');
+    }
   };
   
   // Calculate sale percentage if original price exists
@@ -43,7 +106,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
   };
     
   return (
-    <div className="bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer flex flex-col max-w-[280px] w-full mx-auto">
+    <div className="bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer flex flex-col max-w-[280px] w-full mx-auto border border-orange-100 hover:border-orange-300">
       <div className="relative h-[160px] w-full">
         {/* Product badges */}
         <div className="absolute top-2 left-2 flex flex-col gap-1.5 z-10">
@@ -66,10 +129,15 @@ const ProductCard: React.FC<ProductCardProps> = ({
         
         {/* Wishlist button */}
         <button
-          className="absolute top-2 right-2 p-1.5 z-10 text-gray-400 hover:text-[#F2631F] hover:bg-white hover:shadow-md rounded-full transition-all duration-300"
+          className={`absolute top-2 right-2 p-1.5 z-10 rounded-full transition-all duration-300 ${
+            isInWishlist(Number(product.id)) 
+              ? 'text-[#F2631F] bg-white shadow-md' 
+              : 'text-gray-400 hover:text-[#F2631F] hover:bg-white hover:shadow-md'
+          }`}
           onClick={handleWishlist}
+          disabled={wishlistLoading}
         >
-          <Heart className="w-4 h-4" />
+          <Heart className={`w-4 h-4 ${isInWishlist(Number(product.id)) ? 'fill-current' : ''}`} />
         </button>
         
         {/* Product image */}
@@ -102,9 +170,9 @@ const ProductCard: React.FC<ProductCardProps> = ({
             )}
           </div>
           <button
-            className="w-1/2 bg-[#F2631F] text-white py-1.5 rounded-md hover:bg-orange-600 transition-colors flex items-center justify-center gap-1.5 text-sm"
+            className="w-full bg-[#F2631F] text-white py-1.5 rounded-md hover:bg-orange-600 transition-colors flex items-center justify-center gap-1.5 text-sm"
             onClick={handleAddToCart}
-            disabled={product.stock === 0}
+            disabled={product.stock === 0 || user?.role === 'merchant' || user?.role === 'admin'}
           >
             <ShoppingCart className="w-4 h-4" />
             {product.stock === 0 ? 'Sold Out' : 'Add to Cart'}

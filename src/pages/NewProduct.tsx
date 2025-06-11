@@ -1,105 +1,204 @@
-import React, { useEffect, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { ChevronRight, ChevronLeft } from 'lucide-react';
+import React, { useEffect, useState, useRef } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { ChevronRight, ChevronLeft, SlidersHorizontal, ArrowUpDown, X, Check, ChevronDown } from 'lucide-react';
 import ProductCard from '../components/product/ProductCard';
 import { Product } from '../types';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
 const NewProduct: React.FC = () => {
   const location = useLocation();
-  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
+  const navigate = useNavigate();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<string | null>(null);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [isDesktopSortOpen, setIsDesktopSortOpen] = useState(false);
+  const [isMobileSortOpen, setIsMobileSortOpen] = useState(false);
+  const [selectedSort, setSelectedSort] = useState('newest');
 
-  // Sample new products data with real images
-  const newProducts: Product[] = [
-    {
-      id: '1',
-      name: 'Smart Watch Pro X',
-      price: 299.99,
-      category: 'Smart Watch',
-      description: 'Advanced smartwatch with health monitoring and GPS tracking',
-      image: 'https://images.unsplash.com/photo-1546868871-7041f2a55e12?q=80&w=600&auto=format&fit=crop',
-      sku: 'SW-001',
-      stock: 15,
-      rating: 4.5,
-      reviews: 24,
-      currency: 'USD',
-      primary_image: 'https://images.unsplash.com/photo-1546868871-7041f2a55e12?q=80&w=600&auto=format&fit=crop',
-      isNew: true
-    },
-    {
-      id: '2',
-      name: 'Wireless Noise Cancelling Headphones',
-      price: 199.99,
-      originalPrice: 249.99,
-      category: 'Accessories',
-      description: 'Premium over-ear headphones with active noise cancellation',
-      image: 'https://images.unsplash.com/photo-1546435770-a3e426bf472b?q=80&w=600&auto=format&fit=crop',
-      sku: 'HP-001',
-      stock: 10,
-      rating: 4.8,
-      reviews: 36,
-      currency: 'USD',
-      primary_image: 'https://images.unsplash.com/photo-1546435770-a3e426bf472b?q=80&w=600&auto=format&fit=crop'
-    },
-    {
-      id: '3',
-      name: 'Ultra Slim Laptop',
-      price: 1299.99,
-      category: 'Laptop',
-      description: 'Powerful and lightweight laptop for professionals',
-      image: 'https://images.unsplash.com/photo-1541807084-5c52b6b3adef?q=80&w=600&auto=format&fit=crop',
-      sku: 'LP-001',
-      stock: 8,
-      rating: 4.7,
-      reviews: 42,
-      currency: 'USD',
-      primary_image: 'https://images.unsplash.com/photo-1541807084-5c52b6b3adef?q=80&w=600&auto=format&fit=crop'
-    },
-    {
-      id: '4',
-      name: 'iPad Pro 12.9"',
-      price: 999.99,
-      category: 'Tablet',
-      description: 'Ultra-fast tablet with stunning display',
-      image: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?q=80&w=600&auto=format&fit=crop',
-      sku: 'TB-001',
-      stock: 12,
-      rating: 4.9,
-      reviews: 56,
-      currency: 'USD',
-      primary_image: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?q=80&w=600&auto=format&fit=crop'
-    }
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalProducts, setTotalProducts] = useState(0);
+  const [perPage] = useState(16);
+
+  // Refs for dropdowns
+  const desktopSortRef = useRef<HTMLDivElement>(null);
+  const mobileSortRef = useRef<HTMLDivElement>(null);
+
+  // Sort options
+  const sortOptions = [
+    { label: 'Newest First', value: 'newest', sort_by: 'created_at', order: 'desc' },
+    { label: 'Oldest First', value: 'oldest', sort_by: 'created_at', order: 'asc' },
+    { label: 'Price: High to Low', value: 'price-desc', sort_by: 'selling_price', order: 'desc' },
+    { label: 'Price: Low to High', value: 'price-asc', sort_by: 'selling_price', order: 'asc' }
   ];
 
-  useEffect(() => {
-    // Parse query parameters
-    const queryParams = new URLSearchParams(location.search);
-    const category = queryParams.get('category');
-    const brand = queryParams.get('brand');
-    
-    let filtered = [...newProducts];
-    
-    // Apply filters based on query parameters
-    if (category) {
-      filtered = filtered.filter(product => 
-        product.category.toLowerCase() === category.toLowerCase());
-      setActiveFilter(category);
-      setFilterType('category');
-    } else if (brand) {
-      filtered = filtered.filter(product => 
-        product.category.toLowerCase() === brand.toLowerCase());
-      setActiveFilter(brand);
-      setFilterType('brand');
-    } else {
-      setActiveFilter(null);
-      setFilterType(null);
+  // Sort products based on selected sort option
+  const sortProducts = (productsToSort: Product[], sortValue: string) => {
+    const sortedProducts = [...productsToSort];
+    switch (sortValue) {
+      case 'newest':
+        return sortedProducts.sort((a, b) => 
+          new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime()
+        );
+      case 'oldest':
+        return sortedProducts.sort((a, b) => 
+          new Date(a.created_at || '').getTime() - new Date(b.created_at || '').getTime()
+        );
+      case 'price-desc':
+        return sortedProducts.sort((a, b) => b.price - a.price);
+      case 'price-asc':
+        return sortedProducts.sort((a, b) => a.price - b.price);
+      default:
+        return sortedProducts;
     }
-    
-    setFilteredProducts(filtered);
-  }, [location.search]);
+  };
 
-  const displayProducts = filteredProducts.length > 0 ? filteredProducts : newProducts;
+  // Fetch new products
+  const fetchNewProducts = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        per_page: perPage.toString()
+      });
+
+      const apiUrl = `${API_BASE_URL}/api/products/new?${params}`;
+      console.log('Fetching new products with URL:', apiUrl);
+
+      const response = await fetch(apiUrl, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch new products: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('New products response:', data);
+      
+      // Transform the API response to match the Product type
+      const transformedProducts = data.products.map((product: any) => {
+        const imageUrl = product.image || product.primary_image || '';
+        
+        return {
+          id: product.id || product.product_id.toString(),
+          name: product.name || product.product_name,
+          price: parseFloat(product.price || product.selling_price),
+          originalPrice: parseFloat(product.originalPrice || product.cost_price),
+          description: product.description || product.product_description || '',
+          sku: product.sku,
+          stock: product.stock || 0,
+          rating: product.rating || 0,
+          reviews: product.reviews || [],
+          currency: 'INR',
+          primary_image: imageUrl,
+          image: imageUrl,
+          isNew: true,
+          isBuiltIn: false,
+          category: {
+            category_id: product.category?.category_id || product.category_id || 0,
+            name: product.category?.name || ''
+          },
+          brand: {
+            brand_id: product.brand?.brand_id || product.brand_id || 0,
+            name: product.brand?.name || ''
+          },
+          active_flag: product.active_flag,
+          approval_status: product.approval_status,
+          approved_at: product.approved_at,
+          attributes: product.attributes || [],
+          created_at: product.created_at
+        };
+      });
+      
+      // Sort the transformed products
+      const sortedProducts = sortProducts(transformedProducts, selectedSort);
+      console.log('Transformed and sorted products:', sortedProducts);
+      
+      setProducts(sortedProducts);
+      setTotalPages(data.pagination.pages);
+      setTotalProducts(data.pagination.total);
+    } catch (err) {
+      console.error('Error fetching new products:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch new products');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle sort change
+  const handleSort = (value: string) => {
+    setSelectedSort(value);
+    setIsMobileSortOpen(false);
+    setIsDesktopSortOpen(false);
+    // Sort existing products without making a new API call
+    setProducts(prevProducts => sortProducts(prevProducts, value));
+  };
+
+  // Fetch products on mount and when pagination changes
+  useEffect(() => {
+    fetchNewProducts();
+  }, [currentPage]);
+
+  // Reset filters
+  const resetFilters = () => {
+    setActiveFilter(null);
+    setFilterType(null);
+    setIsFilterOpen(false);
+    setSelectedSort('newest');
+  };
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (desktopSortRef.current && !desktopSortRef.current.contains(event.target as Node)) {
+        setIsDesktopSortOpen(false);
+      }
+      if (mobileSortRef.current && !mobileSortRef.current.contains(event.target as Node)) {
+        setIsMobileSortOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Loading state
+  if (loading && products.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-red-500 text-center">
+          <p className="text-xl font-semibold mb-2">Error Loading Products</p>
+          <p>{error}</p>
+          <button 
+            onClick={() => fetchNewProducts()}
+            className="mt-4 px-4 py-2 bg-primary-500 text-white rounded hover:bg-primary-600"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -114,27 +213,64 @@ const NewProduct: React.FC = () => {
               </div>
             )}
           </div>
-          <div className="flex items-center w-full sm:w-auto">
-            <label htmlFor="sort" className="mr-2 text-gray-600 text-sm whitespace-nowrap">Sort by:</label>
-            <select 
-              id="sort" 
-              className="border border-gray-300 rounded-md py-1.5 px-3 focus:outline-none focus:ring-1 focus:ring-gray-500 text-sm w-full sm:w-auto bg-white"
+
+          {/* Desktop Sort Dropdown */}
+          <div className="hidden sm:flex relative" ref={desktopSortRef}>
+            <button
+              className="flex items-center gap-2 px-4 py-2 border rounded-md bg-white"
+              onClick={() => setIsDesktopSortOpen(!isDesktopSortOpen)}
             >
-              <option value="date-desc">Newest First</option>
-              <option value="date-asc">Oldest First</option>
-              <option value="price-desc">Price: High to Low</option>
-              <option value="price-asc">Price: Low to High</option>
-            </select>
+              <span>Sort By: </span>
+              <span>
+                {sortOptions.find(opt => opt.value === selectedSort)?.label}
+              </span>
+              <ChevronDown size={16} />
+            </button>
+
+            {isDesktopSortOpen && (
+              <div className="absolute z-20 w-full bg-white border rounded-md shadow-lg top-full">
+                {sortOptions.map(option => (
+                  <button
+                    key={option.value}
+                    onClick={() => handleSort(option.value)}
+                    className={`flex items-center w-full px-4 py-2 text-left hover:bg-gray-100 ${
+                      selectedSort === option.value ? 'bg-gray-100' : ''
+                    }`}
+                  >
+                    {selectedSort === option.value && <Check size={16} className="mr-2 text-primary-600" />}
+                    <span>{option.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
-        {displayProducts.length === 0 ? (
+        {/* Mobile Filter and Sort Bar */}
+        <div className="sm:hidden flex items-center gap-2 mb-4">
+          <button
+            onClick={() => setIsFilterOpen(true)}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 rounded-lg"
+          >
+            <SlidersHorizontal size={20} />
+            <span>Filters</span>
+          </button>
+          <button
+            onClick={() => setIsMobileSortOpen(true)}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 rounded-lg"
+          >
+            <ArrowUpDown size={20} />
+            <span>Sort</span>
+          </button>
+        </div>
+
+        {products.length === 0 ? (
           <div className="flex justify-center items-center py-16">
-            <p className="text-gray-500">No products found matching your criteria.</p>
+            <p className="text-gray-500">No new products available.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mb-8">
-            {displayProducts.map(product => (
+            {products.map(product => (
               <ProductCard
                 key={product.id}
                 product={product}
@@ -145,46 +281,69 @@ const NewProduct: React.FC = () => {
         )}
 
         {/* Pagination */}
-        {displayProducts.length > 0 && (
+        {totalPages > 1 && (
           <div className="flex justify-center mt-8 mb-8">
-            <button className="px-3 py-1 rounded border border-gray-200 text-gray-700">
+            <button 
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1 rounded border border-gray-200 text-gray-700 disabled:opacity-50"
+            >
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <button className="px-3 py-1 rounded bg-[#F15A24] text-white mx-1">1</button>
-            <button className="px-3 py-1 rounded border border-gray-200 text-gray-700 mx-1">2</button>
-            <button className="px-3 py-1 rounded border border-gray-200 text-gray-700 mx-1">3</button>
-            <button className="px-3 py-1 rounded border border-gray-200 text-gray-700">
+            {[...Array(totalPages)].map((_, i) => (
+              <button
+                key={i + 1}
+                onClick={() => setCurrentPage(i + 1)}
+                className={`px-3 py-1 rounded mx-1 ${
+                  currentPage === i + 1
+                    ? 'bg-[#F15A24] text-white'
+                    : 'border border-gray-200 text-gray-700'
+                }`}
+              >
+                {i + 1}
+              </button>
+            ))}
+            <button 
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 rounded border border-gray-200 text-gray-700 disabled:opacity-50"
+            >
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>
         )}
+      </div>
 
-        {/* You May Also Like */}
-        {displayProducts.length > 0 && (
-          <div className="mt-12">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-medium text-gray-900">You May Also Like</h2>
-              <div className="flex space-x-2">
-                <button className="border border-gray-200 p-1.5 rounded hover:bg-gray-50">
-                  <ChevronLeft className="h-5 w-5" />
-                </button>
-                <button className="border border-gray-200 p-1.5 rounded hover:bg-gray-50">
-                  <ChevronRight className="h-5 w-5" />
+      {/* Mobile Sort Dropdown */}
+      {isMobileSortOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-40">
+          <div ref={mobileSortRef} className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl">
+            <div className="p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Sort By</h3>
+                <button onClick={() => setIsMobileSortOpen(false)} className="p-2">
+                  <X size={24} />
                 </button>
               </div>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-              {newProducts.slice(0, 6).map((product) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  isNew={product.isNew}
-                />
-              ))}
+              <div className="space-y-2">
+                {sortOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => handleSort(option.value)}
+                    className={`w-full text-left px-4 py-3 rounded-lg ${
+                      selectedSort === option.value
+                        ? 'bg-orange-50 text-[#F2631F]'
+                        : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };

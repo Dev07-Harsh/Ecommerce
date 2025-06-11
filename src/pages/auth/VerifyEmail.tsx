@@ -59,7 +59,7 @@ const VerifyEmail: React.FC = () => {
   };
 
   return (
-    <div className="pt-16 min-h-screen bg-gray-50 flex items-center justify-center px-4">
+    <div className="bg-gray-50 flex items-center justify-center px-4 py-8">
       <motion.div
         className="max-w-md w-full bg-white rounded-xl shadow-sm overflow-hidden p-8"
         initial={{ opacity: 0, y: 20 }}

@@ -22,6 +22,134 @@
     -ms-overflow-style: none;  /* IE and Edge */
     scrollbar-width: none;  /* Firefox */
   }
+
+  /* Enhanced input sizes for all merchant/business pages */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="search"],
+  input[type="date"],
+  input[type="datetime-local"],
+  textarea,
+  select {
+    padding: 12px 16px !important;
+    min-height: 48px !important;
+    font-size: 16px !important;
+    line-height: 1.5 !important;
+    border-radius: 8px !important;
+    transition: all 0.3s ease !important;
+    border-width: 1px !important;
+  }
+
+  /* Enhanced textarea */
+  textarea {
+    min-height: 120px !important;
+    padding: 16px !important;
+    resize: vertical !important;
+  }
+
+  /* Enhanced focus states */
+  input:focus,
+  textarea:focus,
+  select:focus {
+    outline: none !important;
+    border-color: #FF4D00 !important;
+    box-shadow: 0 0 0 3px rgba(255, 77, 0, 0.15) !important;
+    transform: translateY(-1px) !important;
+  }
+
+  /* Enhanced hover states */
+  input:hover:not(:disabled),
+  textarea:hover:not(:disabled),
+  select:hover:not(:disabled) {
+    border-color: #9ca3af !important;
+  }
+
+  /* Enhanced labels */
+  label {
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    margin-bottom: 8px !important;
+    color: #374151 !important;
+    display: block !important;
+  }
+
+  /* Special handling for inputs with icons */
+  input.pl-7,
+  input[class*="pl-7"] {
+    padding-left: 32px !important;
+  }
+
+  input.pr-10,
+  input.pr-12,
+  input[class*="pr-10"],
+  input[class*="pr-12"] {
+    padding-right: 48px !important;
+  }
+
+  /* Enhanced select styling */
+  select {
+    appearance: none !important;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M6 8l4 4 4-4'/%3e%3c/svg%3e") !important;
+    background-position: right 12px center !important;
+    background-size: 16px 16px !important;
+    background-repeat: no-repeat !important;
+    padding-right: 40px !important;
+  }
+
+  /* Exclude checkbox and radio from size changes */
+  input[type="checkbox"],
+  input[type="radio"] {
+    padding: 0 !important;
+    min-height: auto !important;
+    width: 18px !important;
+    height: 18px !important;
+    border-radius: 3px !important;
+  }
+
+  /* Override conflicting Tailwind classes with higher specificity */
+  .px-3,
+  input.px-3,
+  textarea.px-3,
+  select.px-3 {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+
+  .py-2,
+  input.py-2,
+  textarea.py-2,
+  select.py-2 {
+    padding-top: 12px !important;
+    padding-bottom: 12px !important;
+  }
+
+  /* Additional size overrides */
+  .text-sm,
+  input.text-sm,
+  textarea.text-sm,
+  select.text-sm {
+    font-size: 16px !important;
+  }
+
+  .rounded-md,
+  input.rounded-md,
+  textarea.rounded-md,
+  select.rounded-md {
+    border-radius: 8px !important;
+  }
+
+  /* Button enhancements for consistency */
+  button[type="submit"],
+  .btn-primary {
+    padding: 12px 20px !important;
+    font-size: 16px !important;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+  }
 }
 
 @layer components {
@@ -40,6 +168,21 @@
   .no-scrollbar {
     -ms-overflow-style: none;  /* IE and Edge */
     scrollbar-width: none;  /* Firefox */
+  }
+
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Hide scrollbar for IE, Edge and Firefox */
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    scroll-behavior: smooth;
+    overscroll-behavior-x: contain;
+    touch-action: pan-x;
   }
 }
 

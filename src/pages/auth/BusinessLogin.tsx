@@ -45,7 +45,8 @@ const BusinessLogin: React.FC = () => {
             name: data.user.first_name + ' ' + data.user.last_name,
             role: 'merchant',
             isEmailVerified: true,
-            verificationStatus: data.user.verification_status
+            verificationStatus: data.user.verification_status,
+            businessName: data.user.business_name
           }
         });
 

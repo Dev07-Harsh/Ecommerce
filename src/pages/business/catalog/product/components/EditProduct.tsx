@@ -38,12 +38,6 @@ interface Shipping {
   free_shipping: boolean;
 }
 
-interface ProductStock {
-  product_id: number;
-  stock_qty: number;
-  low_stock_threshold: number;
-}
-
 interface ShippingUnit {
   value: string;
   label: string;
@@ -57,6 +51,11 @@ interface ProductMeta {
   meta_title: string;
   meta_desc: string;
   meta_keywords: string;
+}
+
+interface ProductTax {
+  product_id: number;
+  tax_rate: number;
 }
 
 interface Product {
@@ -81,7 +80,6 @@ interface Product {
   };
   media?: Media[];
   shipping?: Shipping;
-  stock?: ProductStock;
   meta?: ProductMeta;
 }
 
@@ -116,7 +114,6 @@ const EditProduct: React.FC = () => {
   const [mediaStats, setMediaStats] = useState<MediaStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [stockData, setStockData] = useState<ProductStock | null>(null);
   const [formData, setFormData] = useState({
     product_name: '',
     sku: '',
@@ -133,9 +130,7 @@ const EditProduct: React.FC = () => {
     length: '',
     width: '',
     height: '',
-    dimensionUnit: 'cm',
-    stock_qty: '0',
-    low_stock_threshold: '0'
+    dimensionUnit: 'cm'
   });
   const [shippingData, setShippingData] = useState({
     weight_kg: 0,
@@ -159,7 +154,6 @@ const EditProduct: React.FC = () => {
       fetchProduct();
       fetchMediaStats();
       fetchShipping();
-      fetchProductStock();
       fetchProductMeta();
     }
   }, [id]);
@@ -264,8 +258,6 @@ const EditProduct: React.FC = () => {
         height: productData.shipping?.dimensions?.height?.toString() || '',
         weightUnit: 'kg',
         dimensionUnit: 'cm',
-        stock_qty: productData.stock?.stock_qty?.toString() || '0',
-        low_stock_threshold: productData.stock?.low_stock_threshold?.toString() || '0',
       });
     } catch (error) {
       console.error('Error fetching product:', error);
@@ -333,36 +325,6 @@ const EditProduct: React.FC = () => {
     } catch (error) {
       console.error('Error fetching shipping details:', error);
       setError('Failed to load shipping details. Please try again later.');
-    }
-  };
-
-  const fetchProductStock = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/merchant-dashboard/products/${id}/stock`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch product stock');
-      }
-
-      const data = await response.json();
-      console.log('Stock data received:', data);
-      
-      // Update both stockData and formData
-      setStockData(data);
-      setFormData(prev => ({
-        ...prev,
-        stock_qty: data.stock_qty?.toString() || '0',
-        low_stock_threshold: data.low_stock_threshold?.toString() || '0'
-      }));
-    } catch (error) {
-      console.error('Error fetching product stock:', error);
-      setError('Failed to load product stock. Please try again later.');
     }
   };
 
@@ -543,60 +505,6 @@ const EditProduct: React.FC = () => {
     }
   };
 
-  const handleUpdateStock = async () => {
-    try {
-      const stockUpdateData = {
-        stock_qty: parseInt(formData.stock_qty),
-        low_stock_threshold: parseInt(formData.low_stock_threshold),
-      };
-
-      console.log('Updating stock with data:', stockUpdateData);
-
-      // First try PUT request
-      let response = await fetch(`${API_BASE_URL}/api/merchant-dashboard/products/${id}/stock`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(stockUpdateData),
-      });
-
-      // If PUT fails, try POST request
-      if (!response.ok) {
-        console.log('PUT request failed, trying POST...');
-        response = await fetch(`${API_BASE_URL}/api/merchant-dashboard/products/${id}/stock`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(stockUpdateData),
-        });
-      }
-
-      if (!response.ok) {
-        throw new Error('Failed to update stock');
-      }
-
-      const updatedData = await response.json();
-      console.log('Stock update response:', updatedData);
-      
-      // Update the form data with the response
-      setFormData(prev => ({
-        ...prev,
-        stock_qty: updatedData.stock_qty?.toString() || '0',
-        low_stock_threshold: updatedData.low_stock_threshold?.toString() || '0'
-      }));
-      
-      // Refresh stock data
-      await fetchProductStock();
-    } catch (error) {
-      console.error('Error updating stock:', error);
-      setError('Failed to update stock. Please try again.');
-    }
-  };
-
   const handleUpdateMeta = async () => {
     try {
       // Create a copy of metaData without product_id
@@ -680,7 +588,7 @@ const EditProduct: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
       </div>
     );
   }
@@ -691,7 +599,7 @@ const EditProduct: React.FC = () => {
         <p className="text-red-700">{error}</p>
         <button
           onClick={fetchProduct}
-          className="mt-2 text-sm text-red-600 hover:text-red-700 font-medium"
+          className="mt-2 text-sm text-orange-600 hover:text-orange-700 font-medium"
         >
           Try again
         </button>
@@ -700,7 +608,7 @@ const EditProduct: React.FC = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
+    <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
         <button
           onClick={() => navigate('/business/catalog/products')}
@@ -898,7 +806,7 @@ const EditProduct: React.FC = () => {
               <div className="flex items-center space-x-2">
                 <label
                   htmlFor="media-upload"
-                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none cursor-pointer"
+                  className="inline-flex items-center px-6 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none cursor-pointer"
                 >
                   <PlusIcon className="h-4 w-4 mr-2" />
                   Add Media
@@ -1108,52 +1016,9 @@ const EditProduct: React.FC = () => {
           <div className="mt-4 flex justify-end">
             <button
               onClick={handleUpdateShipping}
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none"
-            >
-              Update Shipping
-            </button>
-          </div>
-        </div>
-
-        {/* Stock Section */}
-        <div className="mt-8 bg-white shadow-sm rounded-lg border border-gray-200 p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Stock Management</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label htmlFor="stock_qty" className="block text-sm font-medium text-gray-700">
-                Stock Quantity
-              </label>
-              <input
-                type="number"
-                id="stock_qty"
-                name="stock_qty"
-                value={stockData?.stock_qty || formData.stock_qty}
-                onChange={handleChange}
-                min="0"
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
-              />
-            </div>
-            <div>
-              <label htmlFor="low_stock_threshold" className="block text-sm font-medium text-gray-700">
-                Low Stock Threshold
-              </label>
-              <input
-                type="number"
-                id="low_stock_threshold"
-                name="low_stock_threshold"
-                value={stockData?.low_stock_threshold || formData.low_stock_threshold}
-                onChange={handleChange}
-                min="0"
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
-              />
-            </div>
-          </div>
-          <div className="mt-4 flex justify-end">
-            <button
-              onClick={handleUpdateStock}
               className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2"
             >
-              Update Stock
+              Update Shipping
             </button>
           </div>
         </div>
@@ -1275,4 +1140,4 @@ const EditProduct: React.FC = () => {
   );
 };
 
-export default EditProduct; 
+export default EditProduct;

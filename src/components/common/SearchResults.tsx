@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Folder, Tag } from 'lucide-react';
+import { Folder, Tag } from 'lucide-react';
 
 interface Product {
   id: string;
@@ -216,7 +216,6 @@ const SearchResults: React.FC<SearchResultsProps> = ({
                           className="w-8 h-8 object-cover rounded mr-2"
                         />
                       )}
-                      <Search className="w-4 h-4 mr-2 text-gray-500" />
                       <span>{product.name}</span>
                       {product.category && (
                         <span className="ml-2 text-xs text-gray-500">in {product.category}</span>
@@ -233,7 +232,6 @@ const SearchResults: React.FC<SearchResultsProps> = ({
               className="text-[#F2631F] hover:text-orange-700 text-sm flex items-center"
               onClick={onItemClick}
             >
-              <Search className="w-4 h-4 mr-2" />
               See all results for "{searchQuery}"
             </Link>
           </div>

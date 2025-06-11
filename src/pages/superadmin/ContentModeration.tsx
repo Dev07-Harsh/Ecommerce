@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Shield, CheckCircle, XCircle, AlertTriangle, Search, Filter, ArrowLeft, ArrowRight, Eye } from "lucide-react";
+import { Shield, CheckCircle, XCircle, AlertTriangle, Filter, ArrowLeft, ArrowRight, Eye } from "lucide-react";
 
 // Define types for our content moderation items
 export interface ModerationItem {
@@ -408,7 +408,6 @@ const ContentModeration = () => {
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1">
               <div className="relative">
-                <Search className="absolute left-3 top-2.5 w-5 h-5 text-gray-400" />
                 <input
                   type="text"
                   placeholder="Search by product, merchant, or content..."

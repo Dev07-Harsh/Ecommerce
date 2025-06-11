@@ -27,9 +27,16 @@ interface Product {
   special_start: string | null;
   special_end: string | null;
   active_flag: boolean;
+  approval_status: 'pending' | 'approved' | 'rejected';
+  approved_at: string | null;
+  approved_by: number | null;
+  rejection_reason: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+  parent_product_id: number | null;
+  stock_qty: number;
+  low_stock_threshold: number;
   category?: {
     category_id: number;
     name: string;
@@ -44,10 +51,10 @@ interface Product {
     type: 'IMAGE' | 'VIDEO';
   }>;
   variants?: Array<{
-    variant_id: number;
+    product_id: number;
     sku: string;
-    price: string | number;
-    stock: string | number;
+    selling_price: number;
+    stock_qty: number;
     attributes: Array<{
       name: string;
       value: string;
@@ -74,6 +81,44 @@ const StatusBadge: React.FC<{ active: boolean }> = ({ active }) => {
   );
 };
 
+// Approval Status Badge component
+const ApprovalStatusBadge: React.FC<{ status: 'pending' | 'approved' | 'rejected', reason?: string | null }> = ({ status, reason }) => {
+  const getStatusStyles = () => {
+    switch (status) {
+      case 'approved':
+        return 'bg-green-100 text-green-800';
+      case 'rejected':
+        return 'bg-red-100 text-red-800';
+      case 'pending':
+      default:
+        return 'bg-yellow-100 text-yellow-800';
+    }
+  };
+
+  const getStatusText = () => {
+    switch (status) {
+      case 'approved':
+        return 'Approved';
+      case 'rejected':
+        return 'Rejected';
+      case 'pending':
+      default:
+        return 'Pending';
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-1">
+      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusStyles()}`}>
+        {getStatusText()}
+      </span>
+      {status === 'rejected' && reason && (
+        <span className="text-xs text-red-600">{reason}</span>
+      )}
+    </div>
+  );
+};
+
 const formatPrice = (price: string | number): string => {
   console.log('formatPrice input:', price, 'type:', typeof price);
   if (typeof price === 'string') {
@@ -96,6 +141,10 @@ const formatStock = (stock: string | number | undefined): string => {
   }
   return stock.toString();
 };
+
+// Add INR formatter
+const formatINR = (amount: number) =>
+  new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount);
 
 const Products: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -140,35 +189,15 @@ const Products: React.FC = () => {
       const data = await response.json();
       console.log('Products data received:', data);
       
-      // Fetch variants for each product
-      console.log('Fetching variants for products...');
-      const productsWithVariants = await Promise.all(
-        data.map(async (product: Product) => {
-          try {
-            console.log(`Fetching variants for product ${product.product_id}...`);
-            const variantsResponse = await fetch(
-              `${API_BASE_URL}/api/merchant-dashboard/products/${product.product_id}/variants`,
-              {
-                headers: {
-                  'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-                  'Content-Type': 'application/json',
-                },
-              }
-            );
-            
-            if (variantsResponse.ok) {
-              const variants = await variantsResponse.json();
-              console.log(`Variants for product ${product.product_id}:`, variants);
-              return { ...product, variants };
-            }
-            console.log(`No variants found for product ${product.product_id}`);
-            return product;
-          } catch (error) {
-            console.error(`Error fetching variants for product ${product.product_id}:`, error);
-            return product;
-          }
-        })
-      );
+      // Group products by parent_product_id
+      const parentProducts = data.filter((product: Product) => !product.parent_product_id);
+      const variantProducts = data.filter((product: Product) => product.parent_product_id);
+
+      // Attach variants to their parent products
+      const productsWithVariants = parentProducts.map((parent: Product) => ({
+        ...parent,
+        variants: variantProducts.filter((variant: Product) => variant.parent_product_id === parent.product_id)
+      }));
 
       console.log('Final products with variants:', productsWithVariants);
       setProducts(productsWithVariants);
@@ -331,7 +360,7 @@ const Products: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
       </div>
     );
   }
@@ -378,14 +407,11 @@ const Products: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-center gap-4">
             {/* Search */}
             <div className="relative flex-grow">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
-              </div>
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
+                className="block w-full pl-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
                 placeholder="Search products by name or SKU..."
               />
             </div>
@@ -497,17 +523,23 @@ const Products: React.FC = () => {
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   <div className="flex items-center cursor-pointer" onClick={() => requestSort('selling_price')}>
-                    Price / Category / Brand
+                    Price
                     {getSortIndicator('selling_price')}
                   </div>
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Variants
+                  Category / Brand
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   <div className="flex items-center cursor-pointer" onClick={() => requestSort('active_flag')}>
                     Status
                     {getSortIndicator('active_flag')}
+                  </div>
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <div className="flex items-center cursor-pointer" onClick={() => requestSort('approval_status')}>
+                    Approval
+                    {getSortIndicator('approval_status')}
                   </div>
                 </th>
                 <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -518,6 +550,7 @@ const Products: React.FC = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {sortedProducts.map((product) => (
                 <React.Fragment key={product.product_id}>
+                  {/* Parent Product Row */}
                   <tr className="hover:bg-orange-50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap w-8">
                       <input
@@ -546,46 +579,23 @@ const Products: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
-                        ${product.selling_price.toFixed(2)}
+                        {formatINR(product.selling_price)}
                         {product.special_price && (
                           <span className="ml-2 text-red-600">
-                            Special: ${product.special_price.toFixed(2)}
+                            Special: {formatINR(product.special_price)}
                           </span>
-                        )}
-                      </div>
-                      <div className="text-sm text-gray-500">{product.category?.name || 'No Category'}</div>
-                      <div className="text-sm text-gray-500">{product.brand?.name || 'No Brand'}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900">
-                        {product.variants?.length || 0} variants
-                        {product.variants && product.variants.length > 0 && (
-                          <div className="mt-2 space-y-2">
-                            {product.variants.map((variant) => {
-                              console.log('Rendering variant:', variant);
-                              return (
-                                <div key={variant.variant_id} className="text-xs bg-gray-50 p-2 rounded">
-                                  <div className="font-medium">SKU: {variant.sku || 'N/A'}</div>
-                                  <div>Price: ${formatPrice(variant.price)}</div>
-                                  <div>Stock: {formatStock(variant.stock)}</div>
-                                  {variant.attributes && variant.attributes.length > 0 && (
-                                    <div className="mt-1">
-                                      {variant.attributes.map((attr, index) => (
-                                        <span key={index} className="inline-block bg-gray-200 rounded-full px-2 py-1 text-xs font-semibold text-gray-700 mr-1 mb-1">
-                                          {attr.name}: {attr.value}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
                         )}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-500">{product.category?.name || 'No Category'}</div>
+                      <div className="text-sm text-gray-500">{product.brand?.name || 'No Brand'}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <StatusBadge active={product.active_flag} />
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <ApprovalStatusBadge status={product.approval_status} reason={product.rejection_reason} />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end space-x-3">
@@ -604,6 +614,70 @@ const Products: React.FC = () => {
                       </div>
                     </td>
                   </tr>
+                  
+                  {/* Variants Rows */}
+                  {product.variants && product.variants.length > 0 && product.variants.map((variant) => (
+                    <tr key={variant.product_id} className="bg-gray-50 hover:bg-orange-50 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap w-8">
+                        <input
+                          type="checkbox"
+                          className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                          checked={selectedItems.includes(variant.product_id)}
+                          onChange={() => toggleSelectItem(variant.product_id)}
+                        />
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center pl-8">
+                          {variant.media && variant.media[0] && (
+                            <div className="flex-shrink-0 h-10 w-10">
+                              <img 
+                                className="h-10 w-10 rounded-sm object-cover" 
+                                src={variant.media[0].media_url} 
+                                alt={`${product.product_name} variant`} 
+                              />
+                            </div>
+                          )}
+                          <div className="ml-4">
+                            <div className="text-sm text-gray-900">
+                              {variant.attributes?.map((attr, index) => (
+                                <span key={index} className="inline-block bg-gray-200 rounded-full px-2 py-1 text-xs font-semibold text-gray-700 mr-1">
+                                  {attr.name}: {attr.value}
+                                </span>
+                              ))}
+                            </div>
+                            <div className="text-sm text-gray-500">SKU - {variant.sku}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">
+                          {formatINR(variant.selling_price)}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-500">Stock: {variant.stock_qty}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <StatusBadge active={product.active_flag} />
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <ApprovalStatusBadge status={product.approval_status} reason={product.rejection_reason} />
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex items-center justify-end space-x-3">
+                          <Link to={`/business/catalog/product/${variant.product_id}/edit`} className="text-orange-600 hover:text-orange-700">
+                            <PencilIcon className="h-5 w-5" />
+                          </Link>
+                          <button 
+                            onClick={() => handleDeleteProduct(variant.product_id)}
+                            className="text-orange-600 hover:text-orange-900"
+                          >
+                            <TrashIcon className="h-5 w-5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
                 </React.Fragment>
               ))}
             </tbody>

@@ -48,9 +48,18 @@ export interface Business {
 }
 
 export interface CartItem {
-  productId: string;
+  cart_item_id: number;
+  cart_id: number;
+  product_id: number;
   quantity: number;
-  product: Product;
+  is_deleted: boolean;
+  product: {
+    name: string;
+    sku: string;
+    price: number;
+    image_url: string;
+    stock: number;
+  };
 }
 
 export interface Category {

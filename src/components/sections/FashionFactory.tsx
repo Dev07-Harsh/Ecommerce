@@ -2,7 +2,11 @@ import React, { useRef } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import LiveCard from '../../data/LiveCard';
 
-const FashionFactory: React.FC = () => {
+interface FashionFactoryProps {
+  layout?: 'row' | 'grid';
+}
+
+const FashionFactory: React.FC<FashionFactoryProps> = ({ layout = 'row' }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const handleScroll = (direction: 'left' | 'right') => {
@@ -27,7 +31,8 @@ const FashionFactory: React.FC = () => {
       host: 'Emma',
       thumbnail: 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?w=500&h=500&fit=crop',
       viewers: 423,
-      type: 'Factory'
+      type: 'Factory',
+      productId: 'factory-product-1'
     },
     {
       id: 'factory-2',
@@ -35,7 +40,8 @@ const FashionFactory: React.FC = () => {
       host: 'Sophie',
       thumbnail: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=500&h=500&fit=crop',
       viewers: 423,
-      type: 'Factory'
+      type: 'Factory',
+      productId: 'factory-product-2'
     },
     {
       id: 'factory-3',
@@ -43,7 +49,8 @@ const FashionFactory: React.FC = () => {
       host: 'Sophie',
       thumbnail: 'https://images.unsplash.com/photo-1526947425960-945c6e72858f?w=500&h=500&fit=crop',
       viewers: 423,
-      type: 'Factory'
+      type: 'Factory',
+      productId: 'factory-product-3'
     },
     {
       id: 'factory-4',
@@ -51,7 +58,8 @@ const FashionFactory: React.FC = () => {
       host: 'Sophie',
       thumbnail: 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=500&h=500&fit=crop',
       viewers: 423,
-      type: 'Factory'
+      type: 'Factory',
+      productId: 'factory-product-4'
     },
     {
       id: 'factory-5',
@@ -59,10 +67,13 @@ const FashionFactory: React.FC = () => {
       host: 'Sophie',
       thumbnail: 'https://images.unsplash.com/photo-1470309864661-68328b2cd0a5?w=500&h=500&fit=crop',
       viewers: 423,
-      type: 'Factory'
+      type: 'Factory',
+      productId: 'factory-product-5'
     }
   ];
 
+  // Row layout (for LiveShop page)
+  if (layout === 'row') {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -97,6 +108,30 @@ const FashionFactory: React.FC = () => {
         >
           <ChevronRight className="w-5 h-5 text-white" />
         </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Grid layout (for standalone page)
+  return (
+    <div className="bg-white min-h-screen">
+      <div className="max-w-[1440px] mx-auto px-16 py-8">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-[36px] font-medium text-[#FF4D00]">Fashion Factory</h1>
+        </div>
+        
+        <div className="grid grid-cols-5 gap-6 mb-8">
+          {factoryContent.map((item) => (
+            <LiveCard key={item.id} {...item} />
+          ))}
+        </div>
+
+        <div className="flex justify-center">
+          <button className="bg-[#FF4D00] hover:bg-[#FF4D00]/90 text-white px-8 py-3 rounded-lg font-medium transition-colors duration-200">
+            See More
+          </button>
+        </div>
       </div>
     </div>
   );

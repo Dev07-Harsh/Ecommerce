@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Outlet, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import useClickOutside from '../../hooks/useClickOutside';
+import LogoutConfirmationPopup from '../LogoutConfirmationPopup';
 import { 
   ChevronDownIcon, 
   Bars3Icon, 
@@ -19,15 +21,17 @@ import {
   ArrowLeftOnRectangleIcon
 } from '@heroicons/react/24/outline';
 
-// Modified navigation items - removed Categories and Attributes from Catalog submenu
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
+// Modified navigation items - updated Reports section
 const navigationItems = [
   { name: 'Dashboard', path: '/business/dashboard', icon: ChartBarIcon },
-  // Catalog is now a direct link instead of having a submenu
-{ 
+  { 
     name: 'Catalog', 
     icon: CubeIcon,
     submenu: [
       { name: 'Products', path: '/business/catalog/products', icon: CubeIcon },
+      { name: 'Wholesale', path: '/business/catalog/wholesale', icon: CubeIcon },
     ]
   },
   { name: 'Orders', path: '/business/orders', icon: ShoppingBagIcon },
@@ -36,13 +40,21 @@ const navigationItems = [
   { name: 'Payments', path: '/business/payments', icon: CreditCardIcon },
   { name: 'Promotions', path: '/business/product-placements', icon: TagIcon },
   { name: 'Reviews', path: '/business/reviews', icon: StarIcon },
-  { name: 'Reports', path: '/business/reports', icon: DocumentChartBarIcon },
+  { 
+    name: 'Reports', 
+    icon: DocumentChartBarIcon,
+    submenu: [
+      { name: 'Sales Report', path: '/business/reports/sales', icon: ChartBarIcon },
+      { name: 'Customers Report', path: '/business/reports/customers', icon: UserGroupIcon },
+      { name: 'Products Report', path: '/business/reports/products', icon: CubeIcon },
+    ]
+  },
   { name: 'Support', path: '/business/support', icon: ChatBubbleLeftIcon },
   { name: 'Settings', path: '/business/settings', icon: CogIcon },
 ];
 
 const AdminLayout: React.FC = () => {
-  const { isAuthenticated, isMerchant, logout, user } = useAuth();
+  const { isAuthenticated, isMerchant, logout, user, accessToken } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -50,6 +62,58 @@ const AdminLayout: React.FC = () => {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [expandedMenus, setExpandedMenus] = useState<{ [key: string]: boolean }>({});
+  const [isLogoutPopupOpen, setIsLogoutPopupOpen] = useState(false);
+  const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+  
+  useClickOutside(profileMenuRef, () => {
+    setIsProfileMenuOpen(false);
+  });
+
+  // Check verification status
+  useEffect(() => {
+    const checkVerificationStatus = async () => {
+      if (!user || !accessToken) return;
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/merchants/verification-status`, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch verification status');
+        }
+
+        const data = await response.json();
+        setVerificationStatus(data.verification_status);
+        
+        // If not verified and not already on verification pages, redirect
+        if (data.verification_status !== 'approved' && 
+            !location.pathname.includes('/business/verification') && 
+            !location.pathname.includes('/business/verification-status')) {
+          navigate('/business/verification');
+        }
+      } catch (error) {
+        console.error('Error checking verification status:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (isAuthenticated && isMerchant) {
+      checkVerificationStatus();
+    }
+  }, [user, accessToken, isAuthenticated, isMerchant, location.pathname, navigate]);
+
+  // Close dropdowns when route changes
+  useEffect(() => {
+    setIsProfileMenuOpen(false);
+    setIsNotificationsOpen(false);
+  }, [location.pathname]);
 
   // Handle window resize
   useEffect(() => {
@@ -85,6 +149,22 @@ const AdminLayout: React.FC = () => {
     return <Navigate to="/business-login" state={{ from: location }} replace />;
   }
 
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-gray-100">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
+      </div>
+    );
+  }
+
+  // Block access if not verified and not on verification pages
+  if (verificationStatus !== 'approved' && 
+      !location.pathname.includes('/business/verification') && 
+      !location.pathname.includes('/business/verification-status')) {
+    return <Navigate to="/business/verification" replace />;
+  }
+
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
   };
@@ -93,8 +173,14 @@ const AdminLayout: React.FC = () => {
     setExpandedMenus(prev => ({ ...prev, [name]: !prev[name] }));
   };
 
-  const handleLogout = () => {
+  const handleLogoutClick = () => {
+    setIsLogoutPopupOpen(true);
+    setIsProfileMenuOpen(false);
+  };
+
+  const handleLogoutConfirm = () => {
     logout();
+    setIsLogoutPopupOpen(false);
     navigate('/');
   };
 
@@ -164,7 +250,7 @@ const AdminLayout: React.FC = () => {
             </div>
             
             {/* Profile Menu */}
-            <div className="relative">
+            <div className="relative" ref={profileMenuRef}>
               <button
                 className="flex items-center space-x-2 text-sm focus:outline-none"
                 onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
@@ -180,25 +266,25 @@ const AdminLayout: React.FC = () => {
               
               {/* Profile Dropdown */}
               {isProfileMenuOpen && (
-                <div className="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-black ring-1 ring-gray-800 ring-opacity-5 focus:outline-none z-50">
+                <div className="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-[#ffedd5] ring-1 ring-gray-800 ring-opacity-5 focus:outline-none z-50">
                   <div className="py-1" role="menu" aria-orientation="vertical">
                     <Link
                       to="/business/profile"
-                      className="block px-4 py-2 text-sm text-orange-500 hover:bg-gray-800 hover:text-orange-400"
+                      className="block px-4 py-2 text-sm text-orange-800 hover:bg-[#fed7aa] hover:text-orange-900"
                       role="menuitem"
                     >
                       Your Profile
                     </Link>
                     <Link
                       to="/business/settings"
-                      className="block px-4 py-2 text-sm text-orange-500 hover:bg-gray-800 hover:text-orange-400"
+                      className="block px-4 py-2 text-sm text-orange-800 hover:bg-[#fed7aa] hover:text-orange-900"
                       role="menuitem"
                     >
                       Settings
                     </Link>
                     <button
-                      onClick={handleLogout}
-                      className="w-full text-left block px-4 py-2 text-sm text-orange-500 hover:bg-gray-800 hover:text-orange-400"
+                      onClick={handleLogoutClick}
+                      className="w-full text-left block px-4 py-2 text-sm text-orange-800 hover:bg-[#fed7aa] hover:text-orange-900"
                       role="menuitem"
                     >
                       Sign out
@@ -340,6 +426,13 @@ const AdminLayout: React.FC = () => {
           onClick={toggleSidebar}
         ></div>
       )}
+
+      {/* Add the LogoutConfirmationPopup */}
+      <LogoutConfirmationPopup
+        isOpen={isLogoutPopupOpen}
+        onClose={() => setIsLogoutPopupOpen(false)}
+        onConfirm={handleLogoutConfirm}
+      />
     </div>
   );
 };

@@ -3,7 +3,7 @@ import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
-import { Download, Filter, RefreshCw, ChevronDown, Search } from 'lucide-react';
+import { Download, Filter, RefreshCw, ChevronDown } from 'lucide-react';
 
 // Sample data - in a real app, this would come from an API
 const sampleSalesData = [
@@ -392,9 +392,6 @@ export default function SalesReport() {
               <div className="w-full md:w-auto">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
                 <div className="relative rounded-md shadow-sm">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Search className="h-4 w-4 text-gray-400" />
-                  </div>
                   <input
                     type="text"
                     value={searchTerm}

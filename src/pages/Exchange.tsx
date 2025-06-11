@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
+import { Package, ArrowLeft, MapPin, Phone, User, ChevronRight } from 'lucide-react';
 
 interface Order {
   id: string;
@@ -8,6 +9,13 @@ interface Order {
   orderDate: string;
   productName: string;
   imageUrl: string;
+  price: number;
+}
+
+interface ExchangeReason {
+  id: string;
+  label: string;
+  description: string;
 }
 
 const Exchange: React.FC = () => {
@@ -21,175 +29,270 @@ const Exchange: React.FC = () => {
   const [name, setName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [selectedAddress, setSelectedAddress] = useState('home');
+  const [step, setStep] = useState(1);
 
-  const handleRefundClick = () => {
-    navigate(`/refund/${orderId}`, { state: { order } });
-  };
+  const exchangeReasons: ExchangeReason[] = [
+    {
+      id: 'size',
+      label: 'Wrong Size',
+      description: 'The item does not fit as expected'
+    },
+    {
+      id: 'color',
+      label: 'Wrong Color',
+      description: 'The color is different from what was shown online'
+    },
+    {
+      id: 'damaged',
+      label: 'Damaged Product',
+      description: 'The item arrived damaged or defective'
+    },
+    {
+      id: 'not_as_described',
+      label: 'Not as Described',
+      description: 'The product differs from its online description'
+    }
+  ];
 
   const savedAddresses = {
-    home: '123 Home Street, City, State',
-    work: '456 Work Avenue, City, State'
+    home: {
+      type: 'Home',
+      address: '123 Home Street, Apt 4B, City, State 12345',
+      name: 'John Doe',
+      phone: '+1 (555) 123-4567'
+    },
+    work: {
+      type: 'Work',
+      address: '456 Office Building, Suite 789, City, State 12345',
+      name: 'John Doe',
+      phone: '+1 (555) 987-6543'
+    }
+  };
+
+  const handleBack = () => {
+    if (step > 1) {
+      setStep(step - 1);
+    } else {
+      navigate(-1);
+    }
+  };
+
+  const handleContinue = () => {
+    if (step < 3) {
+      setStep(step + 1);
+    } else {
+      // Submit exchange request
+      navigate('/orders', { 
+        state: { 
+          message: 'Exchange request submitted successfully!' 
+        }
+      });
+    }
   };
 
   if (!order) {
-    return <div className="container mx-auto px-4 py-8">Order not found</div>;
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-4">Order Not Found</h2>
+          <p className="text-gray-600 mb-6">We couldn't find the order you're looking for.</p>
+          <button 
+            onClick={() => navigate('/orders')}
+            className="px-6 py-2 bg-[#FF4D00] text-white rounded-lg hover:bg-[#FF4D00]/90 transition-colors"
+          >
+            View All Orders
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-3xl">
-      <div className="flex items-center gap-2 text-gray-600 mb-6">
-        <span>Orders</span>
-        <span>/</span>
-        <span>Exchange</span>
-      </div>
-
-      {/* Product Details */}
-      <div className="flex justify-center mb-8">
-        <div className="text-center">
-          <div className="w-64 h-64 mb-2 mx-auto overflow-hidden rounded-lg bg-orange-500">
-            <img
-              src="https://images.unsplash.com/photo-1553062407-98eeb64c6a62?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80"
-              alt="Stylish Backpack"
-              className="w-full h-full object-cover"
-            />
-          </div>
-          <h2 className="font-medium">Product Name: Stylish Backpack</h2>
-          <p className="text-sm text-gray-600">Order Number: {order.id}</p>
+      {/* Header */}
+      <div className="flex items-center gap-4 mb-8">
+        <button 
+          onClick={handleBack}
+          className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+        >
+          <ArrowLeft size={24} />
+        </button>
+        <div>
+          <h1 className="text-2xl font-bold">Exchange Item</h1>
+          <p className="text-gray-600">Order #{order.id}</p>
         </div>
       </div>
 
-      <div className="space-y-6">
-        {/* Exchange Status */}
-        <div>
-          <h3 className="font-medium mb-2">Exchange Status</h3>
-          <div className="h-2 bg-gray-200 rounded-full overflow-hidden mb-2">
-            <div className="h-full w-1/3 bg-orange-500"></div>
+      {/* Progress Steps */}
+      <div className="flex items-center justify-between mb-8">
+        {[1, 2, 3].map((number) => (
+          <div key={number} className="flex items-center">
+            <div className={`
+              w-8 h-8 rounded-full flex items-center justify-center
+              ${step >= number ? 'bg-[#FF4D00] text-white' : 'bg-gray-100 text-gray-400'}
+            `}>
+              {number}
+            </div>
+            {number < 3 && (
+              <div className={`
+                w-full h-1 mx-2
+                ${step > number ? 'bg-[#FF4D00]' : 'bg-gray-200'}
+              `} />
+            )}
           </div>
-          <div className="flex gap-2">
-            <button className="px-4 py-2 bg-orange-500 text-white rounded-lg">
-              Exchange
-            </button>
-            <button 
-              onClick={handleRefundClick}
-              className="px-4 py-2 text-gray-700 hover:text-gray-900"
-            >
-              Refund
-            </button>
+        ))}
+      </div>
+
+      {/* Product Details - Always visible */}
+      <div className="bg-white rounded-lg p-6 mb-6 border">
+        <div className="flex gap-4">
+          <img
+            src={order.imageUrl}
+            alt={order.productName}
+            className="w-24 h-24 object-cover rounded-lg"
+          />
+          <div>
+            <h3 className="font-medium">{order.productName}</h3>
+            <p className="text-gray-600 text-sm">Ordered on {order.orderDate}</p>
+            <p className="font-medium mt-2">${order.price?.toFixed(2)}</p>
           </div>
         </div>
+      </div>
 
-        {/* Exchange Reason */}
-        <div>
-          <h3 className="font-medium mb-4">Exchange Reason</h3>
-          <select
-            value={selectedReason}
-            onChange={(e) => setSelectedReason(e.target.value)}
-            className="w-full p-2 border rounded-lg"
-          >
-            <option value="">Select</option>
-            <option value="size">Wrong Size</option>
-            <option value="color">Wrong Color</option>
-            <option value="damaged">Damaged Product</option>
-          </select>
-          <p className="text-orange-500 text-sm mt-2 cursor-pointer">View Return Policy</p>
-        </div>
-
-        {/* Pickup Address */}
-        <div>
-          <h3 className="font-medium mb-4">Pickup Address</h3>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-gray-600 mb-1">Address</label>
-              <input
-                type="text"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                className="w-full p-2 border rounded-lg"
-                placeholder="Ex: ABC Building, 4th LF"
-              />
-            </div>
-            <div>
-              <label className="block text-gray-600 mb-1">Name</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full p-2 border rounded-lg"
-                placeholder="Type your name"
-              />
-            </div>
-            <div>
-              <label className="block text-gray-600 mb-1">Phone Number</label>
-              <input
-                type="tel"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                className="w-full p-2 border rounded-lg"
-                placeholder="********"
-              />
+      {/* Step Content */}
+      <div className="bg-white rounded-lg p-6 border">
+        {step === 1 && (
+          <div>
+            <h2 className="text-lg font-medium mb-4">Select Exchange Reason</h2>
+            <div className="space-y-3">
+              {exchangeReasons.map((reason) => (
+                <label 
+                  key={reason.id}
+                  className={`
+                    block p-4 border rounded-lg cursor-pointer transition-colors
+                    ${selectedReason === reason.id ? 'border-[#FF4D00] bg-[#FF4D00]/5' : 'hover:border-gray-300'}
+                  `}
+                >
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      name="reason"
+                      value={reason.id}
+                      checked={selectedReason === reason.id}
+                      onChange={(e) => setSelectedReason(e.target.value)}
+                      className="text-[#FF4D00] focus:ring-[#FF4D00]"
+                    />
+                    <div>
+                      <p className="font-medium">{reason.label}</p>
+                      <p className="text-sm text-gray-600">{reason.description}</p>
+                    </div>
+                  </div>
+                </label>
+              ))}
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Saved Addresses */}
-        <div>
-          <h3 className="font-medium mb-4">Saved Addresses</h3>
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 p-3 border rounded-lg">
-              <input
-                type="radio"
-                name="address"
-                value="home"
-                checked={selectedAddress === 'home'}
-                onChange={(e) => setSelectedAddress(e.target.value)}
-              />
-              <span>Home</span>
-            </label>
-            <label className="flex items-center gap-2 p-3 border rounded-lg">
-              <input
-                type="radio"
-                name="address"
-                value="work"
-                checked={selectedAddress === 'work'}
-                onChange={(e) => setSelectedAddress(e.target.value)}
-              />
-              <span>Work</span>
-            </label>
-          </div>
-          <div className="flex gap-2 mt-4">
-            <button className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm">
-              Set Address
-            </button>
-            <button className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm">
+        {step === 2 && (
+          <div>
+            <h2 className="text-lg font-medium mb-4">Pickup Address</h2>
+            <div className="space-y-4 mb-6">
+              {Object.entries(savedAddresses).map(([key, address]) => (
+                <label 
+                  key={key}
+                  className={`
+                    block p-4 border rounded-lg cursor-pointer transition-colors
+                    ${selectedAddress === key ? 'border-[#FF4D00] bg-[#FF4D00]/5' : 'hover:border-gray-300'}
+                  `}
+                >
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      name="address"
+                      value={key}
+                      checked={selectedAddress === key}
+                      onChange={(e) => setSelectedAddress(e.target.value)}
+                      className="text-[#FF4D00] focus:ring-[#FF4D00]"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <p className="font-medium">{address.type}</p>
+                        <span className="text-sm text-[#FF4D00]">Edit</span>
+                      </div>
+                      <p className="text-sm text-gray-600">{address.address}</p>
+                      <p className="text-sm text-gray-600">{address.name} • {address.phone}</p>
+                    </div>
+                  </div>
+                </label>
+              ))}
+            </div>
+            
+            <button className="w-full py-3 border border-[#FF4D00] text-[#FF4D00] rounded-lg hover:bg-[#FF4D00]/5 transition-colors">
               Add New Address
             </button>
           </div>
-        </div>
+        )}
 
-        {/* Exchange Summary */}
-        <div>
-          <h3 className="font-medium mb-4">Exchange Summary</h3>
-          <div className="border rounded-lg p-4">
-            <div className="space-y-2">
-              <div className="text-sm text-gray-600">
-                <p>Item:</p>
-                <p>Stylish Backpack</p>
+        {step === 3 && (
+          <div>
+            <h2 className="text-lg font-medium mb-4">Exchange Summary</h2>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div className="flex items-center gap-3">
+                  <Package size={20} className="text-gray-400" />
+                  <div>
+                    <p className="font-medium">Exchange Reason</p>
+                    <p className="text-sm text-gray-600">
+                      {exchangeReasons.find(r => r.id === selectedReason)?.label}
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setStep(1)}
+                  className="text-[#FF4D00]"
+                >
+                  <ChevronRight size={20} />
+                </button>
               </div>
-              <div className="text-sm text-gray-600">
-                <p>Exchange Reason:</p>
-                <p>{selectedReason || 'Wrong Size'}</p>
-              </div>
-              <div className="text-sm text-gray-600">
-                <p>Pickup Address:</p>
-                <p>{address || '789 Maple Drive, Anytown, USA'}</p>
+
+              <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div className="flex items-center gap-3">
+                  <MapPin size={20} className="text-gray-400" />
+                  <div>
+                    <p className="font-medium">Pickup Address</p>
+                    <p className="text-sm text-gray-600">
+                      {savedAddresses[selectedAddress as keyof typeof savedAddresses].address}
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setStep(2)}
+                  className="text-[#FF4D00]"
+                >
+                  <ChevronRight size={20} />
+                </button>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
-        <div className="flex justify-end">
-          <button className="px-6 py-2 bg-orange-500 text-white rounded-lg">
-            Submit Exchange
+        {/* Action Buttons */}
+        <div className="mt-8 flex gap-4">
+          <button
+            onClick={handleBack}
+            className="flex-1 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Back
+          </button>
+          <button
+            onClick={handleContinue}
+            disabled={
+              (step === 1 && !selectedReason) ||
+              (step === 2 && !selectedAddress)
+            }
+            className="flex-1 py-3 bg-[#FF4D00] text-white rounded-lg hover:bg-[#FF4D00]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {step === 3 ? 'Submit Exchange' : 'Continue'}
           </button>
         </div>
       </div>

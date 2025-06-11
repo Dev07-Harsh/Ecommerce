@@ -1,63 +1,108 @@
-import React, { useState, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useRef, useEffect } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { ShoppingCart, Heart, Search, Facebook, Instagram, Twitter, Mail, LogOut, User, ChevronDown, Menu, X } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import CategoryDropdown from '../home/CategoryDropdown';
-import NewProductDropdown from '../home/NewProductDropdown';
 import SearchResults from './SearchResults';
 import useClickOutside from '../../hooks/useClickOutside';
+import LogoutConfirmationPopup from '../LogoutConfirmationPopup';
 
 // Custom breakpoint for 968px
 const customBreakpoint = '@media (max-width: 968px)';
 
 const Navbar: React.FC = () => {
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
-  const [isNewProductDropdownOpen, setIsNewProductDropdownOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('Category');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [lowerMobileMenuOpen, setLowerMobileMenuOpen] = useState(false);
+  const [isMobileCategoryDropdownOpen, setIsMobileCategoryDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
   const { totalItems } = useCart();
   const { isAuthenticated, user, logout } = useAuth();
   const [searchType, setSearchType] = useState<'all' | 'products' | 'categories'>('all');
+  const location = useLocation();
+  const [isLogoutPopupOpen, setIsLogoutPopupOpen] = useState(false);
 
   const desktopSearchRef = useRef<HTMLDivElement>(null);
   const mobileSearchRef = useRef<HTMLDivElement>(null);
+  const categoryDropdownRef = useRef<HTMLDivElement>(null);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
+  const lowerMobileMenuRef = useRef<HTMLDivElement>(null);
 
-  useClickOutside(desktopSearchRef, () => {
+  // Refs for toggle buttons to exclude them from outside click detection
+  const desktopCategoryButtonRef = useRef<HTMLButtonElement>(null);
+  const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
+  const lowerMobileMenuButtonRef = useRef<HTMLButtonElement>(null);
+  const mobileCategoryButtonRef = useRef<HTMLButtonElement>(null);
+
+  useClickOutside(desktopSearchRef, (event: MouseEvent | TouchEvent) => {
     setShowSearchResults(false);
   });
 
-  useClickOutside(mobileSearchRef, () => {
+  useClickOutside(mobileSearchRef, (event: MouseEvent | TouchEvent) => {
     setShowSearchResults(false);
   });
+
+  useClickOutside(categoryDropdownRef, (event: MouseEvent | TouchEvent) => {
+    if (desktopCategoryButtonRef.current && !desktopCategoryButtonRef.current.contains(event.target as Node)) {
+      setIsCategoryDropdownOpen(false);
+    }
+  });
+
+  useClickOutside(mobileMenuRef, (event: MouseEvent | TouchEvent) => {
+    if (mobileMenuButtonRef.current && !mobileMenuButtonRef.current.contains(event.target as Node)) {
+      setMobileMenuOpen(false);
+    }
+  });
+
+  useClickOutside(lowerMobileMenuRef, (event: MouseEvent | TouchEvent) => {
+    if (lowerMobileMenuButtonRef.current && !lowerMobileMenuButtonRef.current.contains(event.target as Node)) {
+      setLowerMobileMenuOpen(false);
+    }
+  });
+
+  useEffect(() => {
+    setIsCategoryDropdownOpen(false);
+    setMobileMenuOpen(false);
+    setLowerMobileMenuOpen(false);
+    setIsMobileCategoryDropdownOpen(false);
+    setShowSearchResults(false);
+  }, [location.pathname]);
 
   const toggleCategoryDropdown = () => {
     setIsCategoryDropdownOpen(!isCategoryDropdownOpen);
-    if (isNewProductDropdownOpen) setIsNewProductDropdownOpen(false);
-  };
-
-  const toggleNewProductDropdown = () => {
-    setIsNewProductDropdownOpen(!isNewProductDropdownOpen);
-    if (isCategoryDropdownOpen) setIsCategoryDropdownOpen(false);
   };
 
   const toggleMobileMenu = () => {
     setMobileMenuOpen(!mobileMenuOpen);
+    setLowerMobileMenuOpen(false);
+    setIsCategoryDropdownOpen(false);
+    setIsMobileCategoryDropdownOpen(false);
+    setShowSearchResults(false);
   };
 
   const toggleLowerMobileMenu = () => {
     setLowerMobileMenuOpen(!lowerMobileMenuOpen);
+    setIsMobileCategoryDropdownOpen(false);
   };
 
-  const handleLogout = () => {
+  const toggleMobileCategoryDropdown = () => {
+    setIsMobileCategoryDropdownOpen(!isMobileCategoryDropdownOpen);
+  };
+
+  const handleLogoutClick = () => {
+    setIsLogoutPopupOpen(true);
+    setMobileMenuOpen(false);
+    setLowerMobileMenuOpen(false);
+  };
+
+  const handleLogoutConfirm = () => {
     logout();
-  };
-
-  const closeNewProductDropdown = () => {
-    setIsNewProductDropdownOpen(false);
+    setIsLogoutPopupOpen(false);
+    setMobileMenuOpen(false);
+    setLowerMobileMenuOpen(false);
   };
 
   const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -86,7 +131,7 @@ const Navbar: React.FC = () => {
   const searchBarContent = (
     <div ref={desktopSearchRef} className="relative">
       <form onSubmit={handleSearchSubmit} className="relative">
-        <div className="flex rounded-md overflow-hidden bg-white">
+        <div className="flex rounded-md overflow-hidden bg-white border border-gray-300 shadow-sm">
           <input
             type="text"
             placeholder="What are you looking for?"
@@ -95,7 +140,7 @@ const Navbar: React.FC = () => {
             onChange={handleSearchInputChange}
             onFocus={() => searchQuery.length >= 2 && setShowSearchResults(true)}
           />
-          <div className="relative flex items-center border-l border-gray-200 bg-white">
+          <div className="relative flex items-center bg-gray-100">
             <select 
               className="h-full appearance-none bg-transparent py-1.5 pl-3 pr-8 text-gray-900 focus:ring-0 focus:outline-none text-sm"
               value={searchType}
@@ -105,14 +150,7 @@ const Navbar: React.FC = () => {
               <option value="products">Products</option>
               <option value="categories">Categories</option>
             </select>
-            <ChevronDown size={16} className="absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none text-gray-500" />
           </div>
-          <button 
-            type="submit"
-            className="relative flex items-center border-l border-gray-200 bg-white px-4 hover:bg-gray-50"
-          >
-            <Search className="h-4 w-4 text-gray-500" />
-          </button>
         </div>
       </form>
       <SearchResults 
@@ -214,6 +252,7 @@ const Navbar: React.FC = () => {
                 className="block nav:hidden text-white p-2 sm:ml-auto" 
                 onClick={toggleMobileMenu}
                 aria-label="Toggle mobile menu"
+                ref={mobileMenuButtonRef}
               >
                 {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
               </button>
@@ -270,16 +309,16 @@ const Navbar: React.FC = () => {
       
       {/* Mobile menu dropdown - use custom breakpoint at 968px */}
       {mobileMenuOpen && (
-        <div className="nav:hidden bg-black text-white border-t border-gray-800 py-3 px-4">
+        <div className="nav:hidden bg-black text-white border-t border-gray-800 py-3 px-4" ref={mobileMenuRef}>
           {mobileSearchBar}
           
           {/* Mobile action links */}
           <div className="grid grid-cols-3 gap-3 mb-3">
-            <Link to="/wishlist" className="flex flex-col items-center py-1.5 text-xs hover:text-[#F2631F]">
+            <Link to="/wishlist" className="flex flex-col items-center py-1.5 text-xs hover:text-[#F2631F]" onClick={() => { setMobileMenuOpen(false); setLowerMobileMenuOpen(false); }}>
               <Heart className="w-4 h-4 mb-1" />
               <span>Wishlist</span>
             </Link>
-            <Link to="/cart" className="flex flex-col items-center py-1.5 text-xs hover:text-[#F2631F] relative">
+            <Link to="/cart" className="flex flex-col items-center py-1.5 text-xs hover:text-[#F2631F] relative" onClick={() => { setMobileMenuOpen(false); setLowerMobileMenuOpen(false); }}>
               <ShoppingCart className="w-4 h-4 mb-1" />
               {totalItems > 0 && (
                 <span className="absolute top-0 right-6 bg-[#F2631F] text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
@@ -288,7 +327,7 @@ const Navbar: React.FC = () => {
               )}
               <span>Cart</span>
             </Link>
-            <Link to="/profile" className="flex flex-col items-center py-1.5 text-xs hover:text-[#F2631F]">
+            <Link to="/profile" className="flex flex-col items-center py-1.5 text-xs hover:text-[#F2631F]" onClick={() => { setMobileMenuOpen(false); setLowerMobileMenuOpen(false); }}>
               <User className="w-4 h-4 mb-1" />
               <span>Account</span>
             </Link>
@@ -297,6 +336,7 @@ const Navbar: React.FC = () => {
           <Link 
             to="/business/login" 
             className="w-full block text-center bg-[#F2631F] text-white rounded-md px-4 py-1.5 hover:bg-orange-600 mb-3 text-sm"
+            onClick={() => { setMobileMenuOpen(false); setLowerMobileMenuOpen(false); }}
           >
             Become a Merchant
           </Link>
@@ -328,16 +368,16 @@ const Navbar: React.FC = () => {
               className="flex items-center py-1.5 text-black" 
               onClick={toggleLowerMobileMenu}
               aria-label="Toggle lower navigation"
+              ref={lowerMobileMenuButtonRef}
             >
               <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none">
                 <path d="M4 6H20M4 12H20M4 18H20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
               <span>Menu</span>
-              <ChevronDown className={`ml-1 w-4 h-4 transition-transform duration-200 ${lowerMobileMenuOpen ? 'rotate-180' : ''}`} />
             </button>
             
             <div className="flex items-center space-x-2">
-              <Link to="/track-order" className="flex items-center py-1.5 text-xs hover:text-[#F2631F]">
+              <Link to="/track-order" className="flex items-center py-1.5 text-xs hover:text-[#F2631F]" onClick={() => { setMobileMenuOpen(false); setLowerMobileMenuOpen(false); }}>
                 <svg className="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="none">
                   <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
@@ -345,13 +385,13 @@ const Navbar: React.FC = () => {
               </Link>
               {isAuthenticated ? (
                 <button
-                  onClick={handleLogout}
+                  onClick={handleLogoutClick}
                   className="flex items-center py-1.5 text-xs text-red-600 hover:text-red-700"
                 >
                   <LogOut className="w-4 h-4 mr-1" />
                 </button>
               ) : (
-                <Link to="/sign-in" className="flex items-center py-1.5 text-xs hover:text-[#F2631F]">
+                <Link to="/sign-in" className="flex items-center py-1.5 text-xs hover:text-[#F2631F]" onClick={() => { setMobileMenuOpen(false); setLowerMobileMenuOpen(false); }}>
                   <User className="w-4 h-4 mr-1" />
                   <span>Sign In</span>
                 </Link>
@@ -361,63 +401,39 @@ const Navbar: React.FC = () => {
           
           {/* Mobile lower navigation dropdown - use custom breakpoint at 968px */}
           {lowerMobileMenuOpen && (
-            <div className="nav:hidden border-t border-gray-200 pt-2 pb-1">
+            <div className="nav:hidden border-t border-gray-200 pt-2 pb-1" ref={lowerMobileMenuRef}>
               <div className="mb-2">
                 <button
                   className="flex items-center justify-between py-1.5 px-2 text-sm w-full text-left hover:bg-gray-50 rounded"
-                  onClick={toggleCategoryDropdown}
+                  onClick={toggleMobileCategoryDropdown}
+                  ref={mobileCategoryButtonRef}
                 >
                   <span className="flex items-center font-medium">
-                    <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none">
-                      <path d="M4 6H20M4 12H20M4 18H20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
                     Categories
                   </span>
-                  <ChevronDown className={`ml-auto w-4 h-4 transition-transform duration-200 ${isCategoryDropdownOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`ml-auto w-4 h-4 transition-transform duration-200 ${isMobileCategoryDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
-                {isCategoryDropdownOpen && (
+                {isMobileCategoryDropdownOpen && (
                   <div className="pl-4 py-1.5 space-y-1.5">
-                    <Link to="/category/electronics" className="block py-1 text-sm hover:text-[#F2631F]">Electronics</Link>
-                    <Link to="/category/clothing" className="block py-1 text-sm hover:text-[#F2631F]">Clothing</Link>
-                    <Link to="/category/home-garden" className="block py-1 text-sm hover:text-[#F2631F]">Home & Garden</Link>
-                    <Link to="/categories" className="block py-1 text-sm text-[#F2631F]">View All Categories</Link>
+                    <Link to="/category/electronics" className="block py-1 text-sm hover:text-[#F2631F]" onClick={() => { setMobileMenuOpen(false); setLowerMobileMenuOpen(false); }}>Electronics</Link>
+                    <Link to="/category/clothing" className="block py-1 text-sm hover:text-[#F2631F]" onClick={() => { setMobileMenuOpen(false); setLowerMobileMenuOpen(false); }}>Clothing</Link>
+                    <Link to="/category/home-garden" className="block py-1 text-sm hover:text-[#F2631F]" onClick={() => { setMobileMenuOpen(false); setLowerMobileMenuOpen(false); }}>Home & Garden</Link>
+                    <Link to="/categories" className="block py-1 text-sm text-[#F2631F]" onClick={() => { setMobileMenuOpen(false); setLowerMobileMenuOpen(false); }}>View All Categories</Link>
                   </div>
                 )}
               </div>
               
               <nav className="space-y-1.5">
-                <Link to="/" className="block py-1.5 px-2 text-sm hover:bg-gray-50 rounded">
+                <Link to="/" className="block py-1.5 px-2 text-sm hover:bg-gray-50 rounded" onClick={() => { setMobileMenuOpen(false); setLowerMobileMenuOpen(false); }}>
                   Home
                 </Link>
-                <Link to="/all-products" className="block py-1.5 px-2 text-sm hover:bg-gray-50 rounded">
+                <Link to="/all-products" className="block py-1.5 px-2 text-sm hover:bg-gray-50 rounded" onClick={() => { setMobileMenuOpen(false); setLowerMobileMenuOpen(false); }}>
                   All Products
                 </Link>
-                <button 
-                  className="flex items-center justify-between py-1.5 px-2 text-sm hover:bg-gray-50 rounded w-full text-left"
-                  onClick={toggleNewProductDropdown}
-                >
-                  <span>New Product</span>
-                  <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isNewProductDropdownOpen ? 'rotate-180' : ''}`} />
-                </button>
-                {isNewProductDropdownOpen && lowerMobileMenuOpen && (
-                  <div className="bg-gray-50 py-2 px-3 ml-3 rounded">
-                    <div className="space-y-2">
-                      <Link to="/new-product?category=smart-watch" className="block text-sm hover:text-[#F2631F]" onClick={closeNewProductDropdown}>
-                        Smart Watch
-                      </Link>
-                      <Link to="/new-product?category=tablet" className="block text-sm hover:text-[#F2631F]" onClick={closeNewProductDropdown}>
-                        Tablet
-                      </Link>
-                      <Link to="/new-product?category=accessories" className="block text-sm hover:text-[#F2631F]" onClick={closeNewProductDropdown}>
-                        Accessories
-                      </Link>
-                      <Link to="/new-product?promotion=october-sale" className="block text-sm text-[#F2631F] font-medium" onClick={closeNewProductDropdown}>
-                        Special Offers
-                      </Link>
-                    </div>
-                  </div>
-                )}
-                <Link to="/promotion" className="flex items-center justify-between py-1.5 px-2 text-sm hover:bg-gray-50 rounded">
+                <Link to="/new-product" className="block py-1.5 px-2 text-sm hover:bg-gray-50 rounded" onClick={() => { setMobileMenuOpen(false); setLowerMobileMenuOpen(false); }}>
+                  New Product
+                </Link>
+                <Link to="/promo-products" className="flex items-center justify-between py-1.5 px-2 text-sm hover:bg-gray-50 rounded" onClick={() => { setMobileMenuOpen(false); setLowerMobileMenuOpen(false); }}>
                   <span>Promotion</span>
                   <span className="bg-[#F2631F] text-white text-xs px-2 py-0.5 rounded ml-1">HOT</span>
                 </Link>
@@ -433,6 +449,7 @@ const Navbar: React.FC = () => {
                 className="flex items-center py-1.5 px-3 md:px-4 text-black hover:text-gray-700"
                 onClick={toggleCategoryDropdown}
                 aria-expanded={isCategoryDropdownOpen}
+                ref={desktopCategoryButtonRef}
               >
                 <span className="inline">Category</span>
                 <ChevronDown className={`ml-1 w-4 h-4 transition-transform duration-200 ${isCategoryDropdownOpen ? 'rotate-180' : ''}`} />
@@ -447,25 +464,21 @@ const Navbar: React.FC = () => {
               <Link to="/all-products" className="py-1.5 px-2 md:px-3 mid:px-4 font-medium hover:text-[#F2631F]">
                 All Products
               </Link>
-              <button 
-                className="py-1.5 px-2 md:px-3 mid:px-4 font-medium hover:text-[#F2631F] flex items-center bg-transparent border-none cursor-pointer"
-                onClick={toggleNewProductDropdown}
-              >
+              <Link to="/new-product" className="py-1.5 px-2 md:px-3 mid:px-4 font-medium hover:text-[#F2631F]">
                 New Product
-                <ChevronDown className={`ml-1 w-4 h-4 transition-transform duration-200 ${isNewProductDropdownOpen ? 'rotate-180' : ''}`} />
-              </button>
-              <Link to="/promotion" className="py-1.5 px-2 md:px-3 mid:px-4 font-medium hover:text-[#F2631F] flex items-center">
+              </Link>
+              <Link to="/promo-products" className="py-1.5 px-2 md:px-3 mid:px-4 font-medium hover:text-[#F2631F] flex items-center">
                 Promotion <span className="bg-[#F2631F] text-white text-xs px-2 py-0.5 rounded ml-1">HOT</span>
               </Link>
             </nav>
             
             {/* Right side links */}
             <div className="flex items-center md:space-x-2 nav:space-x-3 mid:space-x-6">
-              <Link to="/track-order" className="flex items-center py-1.5 text-sm hover:text-[#F2631F]">
+              <Link to="/orders" className="flex items-center py-1.5 text-sm hover:text-[#F2631F]">
                 <svg className="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="none">
                   <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
-                <span>Track Your Order</span>
+                <span>Your Orders</span>
               </Link>
               {isAuthenticated ? (
                 <div className="flex items-center md:space-x-2 nav:space-x-3 mid:space-x-4">
@@ -473,7 +486,7 @@ const Navbar: React.FC = () => {
                     Welcome, {user?.name || 'User'}
                   </span>
                   <button
-                    onClick={handleLogout}
+                    onClick={handleLogoutClick}
                     className="flex items-center py-1.5 text-sm text-red-600 hover:text-red-700"
                   >
                     <LogOut className="w-4 h-4 mr-1" />
@@ -492,20 +505,21 @@ const Navbar: React.FC = () => {
       </div>
 
       {/* Category dropdown - for desktop */}
-      {isCategoryDropdownOpen && !lowerMobileMenuOpen && (
+      {isCategoryDropdownOpen && !mobileMenuOpen && !lowerMobileMenuOpen && (
+        <div ref={categoryDropdownRef} className="z-40">
         <CategoryDropdown 
           isOpen={isCategoryDropdownOpen} 
           closeDropdown={() => setIsCategoryDropdownOpen(false)} 
         />
+        </div>
       )}
-      
-      {/* New Product dropdown */}
-      {isNewProductDropdownOpen && (
-        <NewProductDropdown 
-          isOpen={isNewProductDropdownOpen} 
-          closeDropdown={() => setIsNewProductDropdownOpen(false)} 
-        />
-      )}
+
+      {/* Logout Confirmation Popup */}
+      <LogoutConfirmationPopup
+        isOpen={isLogoutPopupOpen}
+        onClose={() => setIsLogoutPopupOpen(false)}
+        onConfirm={handleLogoutConfirm}
+      />
     </header>
   );
 };

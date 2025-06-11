@@ -18,19 +18,19 @@ type VerificationStatusType = 'approved' | 'rejected' | 'pending' | 'under_revie
 const statusColors: Record<VerificationStatusType, string> = {
   approved: 'text-green-700 bg-green-50 border-green-300',
   rejected: 'text-red-700 bg-red-50 border-red-300',
-  pending: 'text-yellow-700 bg-yellow-50 border-yellow-300',
-  under_review: 'text-blue-700 bg-blue-50 border-blue-300',
-  documents_submitted: 'text-purple-700 bg-purple-50 border-purple-300',
-  email_verified: 'text-indigo-700 bg-indigo-50 border-indigo-300'
+  pending: 'text-orange-700 bg-orange-50 border-orange-300',
+  under_review: 'text-orange-700 bg-orange-50 border-orange-300',
+  documents_submitted: 'text-orange-700 bg-orange-50 border-orange-300',
+  email_verified: 'text-orange-700 bg-orange-50 border-orange-300'
 };
 
 const statusIcons: Record<VerificationStatusType, JSX.Element> = {
   approved: <CheckCircleIcon className="h-5 w-5 text-green-600" />,
   rejected: <XCircleIcon className="h-5 w-5 text-red-600" />,
-  pending: <ClockIcon className="h-5 w-5 text-yellow-600" />,
-  under_review: <ClockIcon className="h-5 w-5 text-blue-600" />,
-  documents_submitted: <DocumentIcon className="h-5 w-5 text-purple-600" />,
-  email_verified: <CheckCircleIcon className="h-5 w-5 text-indigo-600" />
+  pending: <ClockIcon className="h-5 w-5 text-orange-600" />,
+  under_review: <ClockIcon className="h-5 w-5 text-orange-600" />,
+  documents_submitted: <DocumentIcon className="h-5 w-5 text-orange-600" />,
+  email_verified: <CheckCircleIcon className="h-5 w-5 text-orange-600" />
 };
 
 // Document type mapping for better display
@@ -65,7 +65,11 @@ const documentTypeMap: Record<string, string> = {
   esign_certificate: 'eSign Certificate',
   return_policy: 'Return Policy',
   shipping_details: 'Shipping Details',
+  product_list: 'Product List',
+  category_list: 'Category List',
+  brand_approval: 'Brand Approval',
   brand_authorization: 'Brand Authorization',
+  product_images: 'Product Images',
   other: 'Other Document'
 };
 
@@ -207,12 +211,12 @@ const VerificationStatus: React.FC = () => {
   if (!verificationData) {
     return (
       <div className="max-w-5xl mx-auto py-8 px-4 text-center">
-        <ExclamationTriangleIcon className="h-12 w-12 text-yellow-400 mx-auto mb-4" />
+        <ExclamationTriangleIcon className="h-12 w-12 text-orange-400 mx-auto mb-4" />
         <h2 className="text-xl font-semibold text-gray-900">No Verification Data Found</h2>
         <p className="mt-2 text-gray-600">Please start the verification process to continue.</p>
         <button 
           onClick={() => navigate('/business/Verification')}
-          className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
+          className="mt-4 px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors"
         >
           Start Verification
         </button>
@@ -267,7 +271,7 @@ const VerificationStatus: React.FC = () => {
           {status === 'rejected' && (
             <button
               onClick={handleReapply}
-              className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
+              className="flex items-center px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors"
             >
               <ArrowPathIcon className="h-5 w-5 mr-2" />
               Reapply
@@ -319,11 +323,11 @@ const VerificationStatus: React.FC = () => {
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                         doc.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
                         isDocumentRejected(doc.status) ? 'bg-red-100 text-red-800' : 
-                        'bg-yellow-100 text-yellow-800'
+                        'bg-orange-100 text-orange-800'
                       }`}>
                         {doc.status.toLowerCase() in statusIcons ? 
                           statusIcons[doc.status.toLowerCase() as VerificationStatusType] : 
-                          <ClockIcon className="h-5 w-5 text-yellow-600" />}
+                          <ClockIcon className="h-5 w-5 text-orange-600" />}
                         <span className="ml-1 capitalize">{doc.status.toLowerCase()}</span>
                       </span>
                     </td>
@@ -349,7 +353,7 @@ const VerificationStatus: React.FC = () => {
                             <span className={`inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md ${
                               uploadingDocument === doc.document_type
                                 ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
-                                : 'text-primary-700 bg-primary-100 hover:bg-primary-200'
+                                : 'text-orange-700 bg-orange-100 hover:bg-orange-200'
                             }`}>
                               {uploadingDocument === doc.document_type ? (
                                 <>
@@ -373,11 +377,11 @@ const VerificationStatus: React.FC = () => {
                 <tr>
                   <td colSpan={5} className="px-6 py-4 text-center text-sm text-gray-500">
                     <div className="flex flex-col items-center justify-center py-6">
-                      <ExclamationTriangleIcon className="h-12 w-12 text-yellow-400 mb-3" />
+                      <ExclamationTriangleIcon className="h-12 w-12 text-orange-400 mb-3" />
                       <p>No documents found in your application.</p>
                       <button 
                         onClick={() => navigate('/business/verification')}
-                        className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
+                        className="mt-4 px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors"
                       >
                         Start Verification
                       </button>
@@ -398,7 +402,7 @@ const VerificationStatus: React.FC = () => {
             </div>
             <button 
               onClick={fetchVerificationStatus}
-              className="flex items-center text-primary-600 hover:text-primary-800"
+              className="flex items-center text-orange-600 hover:text-orange-800"
             >
               <ArrowPathIcon className="h-4 w-4 mr-1" />
               Refresh Status
@@ -423,7 +427,7 @@ const VerificationStatus: React.FC = () => {
             <div className="pt-3">
               <button
                 onClick={() => navigate('/business/dashboard')}
-                className="mt-2 px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
+                className="mt-2 px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors"
               >
                 Go to Merchant Dashboard
               </button>
@@ -442,7 +446,7 @@ const VerificationStatus: React.FC = () => {
             <div className="pt-3">
               <button
                 onClick={handleReapply}
-                className="mt-2 px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
+                className="mt-2 px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors"
               >
                 Reapply for Verification
               </button>
@@ -452,7 +456,7 @@ const VerificationStatus: React.FC = () => {
         
         {['pending', 'email_verified', 'documents_submitted', 'under_review'].includes(status) && (
           <div className="space-y-3">
-            <p className="text-yellow-700">Your verification is in progress. Please note:</p>
+            <p className="text-orange-700">Your verification is in progress. Please note:</p>
             <ul className="list-disc list-inside space-y-2 text-gray-700 ml-2">
               <li>The review process typically takes 24-48 hours</li>
               <li>You'll receive an email notification once the review is complete</li>

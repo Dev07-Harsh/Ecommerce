@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, ChevronUp, Trash, Plus } from 'lucide-react';
+import { ChevronDown, ChevronUp, Trash, Plus, Edit2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -20,6 +20,7 @@ interface Category {
 export default function Categories() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [openDialog, setOpenDialog] = useState<boolean>(false);
+  const [isEditing, setIsEditing] = useState<boolean>(false);
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [categoryFormData, setCategoryFormData] = useState({
     name: '',
@@ -35,6 +36,7 @@ export default function Categories() {
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [subcategoryParent, setSubcategoryParent] = useState<Category | null>(null);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
 
   useEffect(() => {
     fetchCategories();
@@ -105,6 +107,26 @@ export default function Categories() {
     });
     setSubcategoryParent(parentCategory || null);
     setOpenDialog(true);
+    setIsEditing(false);
+    setEditingCategory(null);
+  };
+
+  const handleEditDialog = (category: Category) => {
+    setCategoryFormData({
+      name: category.name,
+      slug: category.slug,
+      parent_id: category.parent_id ? String(category.parent_id) : '',
+      icon: null,
+      iconPreview: category.icon_url || '',
+    });
+    setFormErrors({
+      name: '',
+      slug: '',
+    });
+    setSubcategoryParent(null);
+    setOpenDialog(true);
+    setIsEditing(true);
+    setEditingCategory(category);
   };
 
   const handleCloseDialog = () => {
@@ -124,6 +146,8 @@ export default function Categories() {
     });
     setSubcategoryParent(null);
     setOpenDialog(false);
+    setIsEditing(false);
+    setEditingCategory(null);
   };
 
   // Add function to generate slug from name
@@ -252,12 +276,17 @@ export default function Categories() {
         formData.append('parent_id', categoryFormData.parent_id);
       }
 
-      if (categoryFormData.icon) {
+      // Only append icon if it's a parent category (no parent_id) or if it's being edited
+      if ((!categoryFormData.parent_id || isEditing) && categoryFormData.icon) {
         formData.append('icon_file', categoryFormData.icon);
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/superadmin/categories`, {
-        method: 'POST',
+      const url = isEditing && editingCategory
+        ? `${API_BASE_URL}/api/superadmin/categories/${editingCategory.category_id}`
+        : `${API_BASE_URL}/api/superadmin/categories`;
+
+      const response = await fetch(url, {
+        method: isEditing ? 'PUT' : 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
         },
@@ -266,15 +295,15 @@ export default function Categories() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to create category');
+        throw new Error(errorData.message || `Failed to ${isEditing ? 'update' : 'create'} category`);
       }
 
-      toast.success('Category created successfully');
+      toast.success(`Category ${isEditing ? 'updated' : 'created'} successfully`);
       handleCloseDialog();
       await fetchCategories();
     } catch (error) {
-      console.error('Error creating category:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to create category');
+      console.error(`Error ${isEditing ? 'updating' : 'creating'} category:`, error);
+      toast.error(error instanceof Error ? error.message : `Failed to ${isEditing ? 'update' : 'create'} category`);
     } finally {
       setLoading(false);
     }
@@ -330,6 +359,7 @@ export default function Categories() {
   const renderCategoryRows = (category: Category, level: number = 0) => {
     const isExpanded = expandedCategories[category.category_id] || false;
     const hasSubcategories = category.subcategories && category.subcategories.length > 0;
+    const isParentCategory = !category.parent_id;
 
     return (
       <React.Fragment key={category.category_id}>
@@ -346,7 +376,7 @@ export default function Categories() {
           </td>
           <td className="px-6 py-4 whitespace-nowrap">
             <div className="flex items-center" style={{ paddingLeft: `${level * 2}rem` }}>
-              {category.icon_url && (
+              {isParentCategory && category.icon_url && (
                 <img 
                   src={category.icon_url} 
                   alt={category.name}
@@ -365,7 +395,14 @@ export default function Categories() {
             </div>
           </td>
           <td className="px-6 py-4">{category.slug}</td>
-          <td className="px-6 py-4 text-right">
+          <td className="px-6 py-4 text-right space-x-2">
+            <button 
+              className="p-1 text-gray-500 hover:text-blue-600 rounded" 
+              onClick={() => handleEditDialog(category)}
+              title="Edit Category"
+            >
+              <Edit2 size={16} />
+            </button>
             <button 
               className="p-1 text-gray-500 hover:text-red-600 rounded" 
               onClick={() => handleDeleteCategory(category.category_id)}
@@ -381,18 +418,6 @@ export default function Categories() {
         )}
       </React.Fragment>
     );
-  };
-
-  // Update the getAllCategories function to handle nested categories
-  const getAllCategories = (categories: Category[]): Category[] => {
-    let allCategories: Category[] = [];
-    categories.forEach(category => {
-      allCategories.push(category);
-      if (category.subcategories) {
-        allCategories = [...allCategories, ...getAllCategories(category.subcategories)];
-      }
-    });
-    return allCategories;
   };
 
   if (loading) {
@@ -432,7 +457,9 @@ export default function Categories() {
       {openDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-xl font-semibold mb-4">Add New Category</h2>
+            <h2 className="text-xl font-semibold mb-4">
+              {isEditing ? 'Edit Category' : 'Add New Category'}
+            </h2>
             
             <div className="space-y-4">
               <div>
@@ -479,67 +506,70 @@ export default function Categories() {
                 )}
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Category Icon</label>
-                <div className="mt-1 flex items-center space-x-4">
-                  <label className={`
-                    flex-shrink-0 cursor-pointer bg-white px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium
-                    ${uploadingImage ? 'opacity-75 cursor-not-allowed' : 'hover:bg-gray-50'}
-                    focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
-                    transition-all duration-200
-                  `}>
-                    {uploadingImage ? (
-                      <div className="flex items-center space-x-2">
-                        <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                        <span>Processing...</span>
-                      </div>
-                    ) : (
-                      <>
-                        <span>Choose File</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleImageChange}
-                          className="hidden"
-                          disabled={uploadingImage}
-                        />
-                      </>
+              {/* Only show icon upload for parent categories */}
+              {!categoryFormData.parent_id && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Category Icon</label>
+                  <div className="mt-1 flex items-center space-x-4">
+                    <label className={`
+                      flex-shrink-0 cursor-pointer bg-white px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium
+                      ${uploadingImage ? 'opacity-75 cursor-not-allowed' : 'hover:bg-gray-50'}
+                      focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
+                      transition-all duration-200
+                    `}>
+                      {uploadingImage ? (
+                        <div className="flex items-center space-x-2">
+                          <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                          <span>Processing...</span>
+                        </div>
+                      ) : (
+                        <>
+                          <span>Choose File</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleImageChange}
+                            className="hidden"
+                            disabled={uploadingImage}
+                          />
+                        </>
+                      )}
+                    </label>
+                    {categoryFormData.icon && !uploadingImage && (
+                      <span className="text-sm text-gray-500">
+                        {categoryFormData.icon.name}
+                      </span>
                     )}
-                  </label>
-                  {categoryFormData.icon && !uploadingImage && (
-                    <span className="text-sm text-gray-500">
-                      {categoryFormData.icon.name}
-                    </span>
+                  </div>
+                  
+                  {/* Image Preview */}
+                  {categoryFormData.iconPreview && !uploadingImage && (
+                    <div className="mt-4">
+                      <div className="relative w-32 h-32 border rounded-lg overflow-hidden bg-gray-50">
+                        <img
+                          src={categoryFormData.iconPreview}
+                          alt="Category icon preview"
+                          className="w-full h-full object-contain"
+                        />
+                        <button
+                          onClick={() => {
+                            URL.revokeObjectURL(categoryFormData.iconPreview);
+                            setCategoryFormData({
+                              ...categoryFormData,
+                              icon: null,
+                              iconPreview: '',
+                            });
+                          }}
+                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 focus:outline-none"
+                          title="Remove image"
+                        >
+                          <Trash className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </div>
-                
-                {/* Image Preview */}
-                {categoryFormData.iconPreview && !uploadingImage && (
-                  <div className="mt-4">
-                    <div className="relative w-32 h-32 border rounded-lg overflow-hidden bg-gray-50">
-                      <img
-                        src={categoryFormData.iconPreview}
-                        alt="Category icon preview"
-                        className="w-full h-full object-contain"
-                      />
-                      <button
-                        onClick={() => {
-                          URL.revokeObjectURL(categoryFormData.iconPreview);
-                          setCategoryFormData({
-                            ...categoryFormData,
-                            icon: null,
-                            iconPreview: '',
-                          });
-                        }}
-                        className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 focus:outline-none"
-                        title="Remove image"
-                      >
-                        <Trash className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
+              )}
             </div>
 
             <div className="mt-6 flex justify-end space-x-3">
@@ -557,10 +587,10 @@ export default function Categories() {
                 {loading ? (
                   <div className="flex items-center">
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                    Creating...
+                    {isEditing ? 'Updating...' : 'Creating...'}
                   </div>
                 ) : (
-                  'Create Category'
+                  isEditing ? 'Update Category' : 'Create Category'
                 )}
               </button>
             </div>

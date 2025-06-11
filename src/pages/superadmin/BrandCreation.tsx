@@ -70,6 +70,9 @@ const BrandCreation: React.FC = () => {
     // Add state for category filter
     const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<number | ''>('');
 
+    // Add new state for image uploading
+    const [uploadingImage, setUploadingImage] = useState<boolean>(false);
+
     // Fetch brands and categories on component mount
     useEffect(() => {
         fetchBrands();
@@ -151,32 +154,48 @@ const BrandCreation: React.FC = () => {
     };
 
     // Handle image upload
-    const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const handleImageChange = async (e: ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            setBrandImage(file);
-            
-            // Create preview URL
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setBrandImagePreview(reader.result as string);
-            };
-            reader.readAsDataURL(file);
+            try {
+                setUploadingImage(true);
+                const file = e.target.files[0];
+                setBrandImage(file);
+                
+                // Create preview URL
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    setBrandImagePreview(reader.result as string);
+                };
+                reader.readAsDataURL(file);
+            } catch (error) {
+                console.error('Error processing image:', error);
+                toast.error('Error processing image');
+            } finally {
+                setUploadingImage(false);
+            }
         }
     };
 
     // Handle edit image upload
-    const handleEditImageChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const handleEditImageChange = async (e: ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            setEditImage(file);
-            
-            // Create preview URL
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setEditImagePreview(reader.result as string);
-            };
-            reader.readAsDataURL(file);
+            try {
+                setUploadingImage(true);
+                const file = e.target.files[0];
+                setEditImage(file);
+                
+                // Create preview URL
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    setEditImagePreview(reader.result as string);
+                };
+                reader.readAsDataURL(file);
+            } catch (error) {
+                console.error('Error processing image:', error);
+                toast.error('Error processing image');
+            } finally {
+                setUploadingImage(false);
+            }
         }
     };
 
@@ -502,11 +521,7 @@ const BrandCreation: React.FC = () => {
                 </div>
                 <button
                     onClick={() => setShowAddBrandForm(true)}
-
-
-
                     className="bg-[#FF5733] text-white px-4 py-2 rounded hover:bg-[#FF4500] transition-colors"
-
                 >
                     Add New Brand
                 </button>
@@ -626,12 +641,24 @@ const BrandCreation: React.FC = () => {
                                             </button>
                                         </div>
                                     ) : (
-                                        <div className="border-2 border-dashed border-gray-300 rounded-md p-4 text-center cursor-pointer hover:bg-gray-50"
-                                            onClick={() => document.getElementById('brandImageInput')?.click()}
+                                        <div className={`
+                                            border-2 border-dashed border-gray-300 rounded-md p-4 text-center cursor-pointer hover:bg-gray-50
+                                            ${uploadingImage ? 'opacity-50 cursor-not-allowed' : ''}
+                                        `}
+                                            onClick={() => !uploadingImage && document.getElementById('brandImageInput')?.click()}
                                         >
-                                            <Upload className="w-6 h-6 mx-auto text-gray-400" />
-                                            <p className="text-sm text-gray-500 mt-1">Click to upload or drag and drop</p>
-                                            <p className="text-xs text-gray-400">PNG, JPG, JPEG, GIF, SVG, WEBP</p>
+                                            {uploadingImage ? (
+                                                <div className="flex flex-col items-center">
+                                                    <div className="w-8 h-8 border-4 border-[#FF5733] border-t-transparent rounded-full animate-spin mb-2"></div>
+                                                    <p className="text-sm text-gray-500">Uploading...</p>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <Upload className="w-6 h-6 mx-auto text-gray-400" />
+                                                    <p className="text-sm text-gray-500 mt-1">Click to upload or drag and drop</p>
+                                                    <p className="text-xs text-gray-400">PNG, JPG, JPEG, GIF, SVG, WEBP</p>
+                                                </>
+                                            )}
                                         </div>
                                     )}
                                     
@@ -641,6 +668,7 @@ const BrandCreation: React.FC = () => {
                                         onChange={handleImageChange}
                                         accept="image/png,image/jpeg,image/jpg,image/gif,image/svg+xml,image/webp"
                                         className="hidden"
+                                        disabled={uploadingImage}
                                     />
                                 </div>
                                 
@@ -779,12 +807,24 @@ const BrandCreation: React.FC = () => {
                                         </button>
                                     </div>
                                 ) : (
-                                    <div className="border-2 border-dashed border-gray-300 rounded-md p-4 text-center cursor-pointer hover:bg-gray-50"
-                                        onClick={() => document.getElementById('editBrandImageInput')?.click()}
+                                    <div className={`
+                                        border-2 border-dashed border-gray-300 rounded-md p-4 text-center cursor-pointer hover:bg-gray-50
+                                        ${uploadingImage ? 'opacity-50 cursor-not-allowed' : ''}
+                                    `}
+                                        onClick={() => !uploadingImage && document.getElementById('editBrandImageInput')?.click()}
                                     >
-                                        <Upload className="w-6 h-6 mx-auto text-gray-400" />
-                                        <p className="text-sm text-gray-500 mt-1">Click to upload or drag and drop</p>
-                                        <p className="text-xs text-gray-400">PNG, JPG, JPEG, GIF, SVG, WEBP</p>
+                                        {uploadingImage ? (
+                                            <div className="flex flex-col items-center">
+                                                <div className="w-8 h-8 border-4 border-[#FF5733] border-t-transparent rounded-full animate-spin mb-2"></div>
+                                                <p className="text-sm text-gray-500">Uploading...</p>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <Upload className="w-6 h-6 mx-auto text-gray-400" />
+                                                <p className="text-sm text-gray-500 mt-1">Click to upload or drag and drop</p>
+                                                <p className="text-xs text-gray-400">PNG, JPG, JPEG, GIF, SVG, WEBP</p>
+                                            </>
+                                        )}
                                     </div>
                                 )}
                                 
@@ -794,6 +834,7 @@ const BrandCreation: React.FC = () => {
                                     onChange={handleEditImageChange}
                                     accept="image/png,image/jpeg,image/jpg,image/gif,image/svg+xml,image/webp"
                                     className="hidden"
+                                    disabled={uploadingImage}
                                 />
                             </div>
                             

@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Mail, Phone, MapPin, Twitter, Facebook, Github } from 'lucide-react';
 import { Instagram } from 'lucide-react';
 
 const Footer: React.FC = () => {
+  const [showRaiseTicket, setShowRaiseTicket] = useState(false);
+
   return (
     <footer className="bg-black text-white w-full overflow-hidden">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-16">
@@ -71,6 +73,9 @@ const Footer: React.FC = () => {
           <div className="mt-4">
             <h3 className="text-xl font-semibold mb-6">Customer Support</h3>
             <ul className="space-y-4">
+              <li>
+                <Link to="/RaiseTicket" className="text-gray-300 hover:text-white transition-colors">Raise Ticket</Link>
+              </li>
               <li>
                 <div className="text-gray-300">Call us at</div>
                 <a href="tel:212-929-9953" className="text-[#F2631F] hover:text-white">212 929 9953</a>

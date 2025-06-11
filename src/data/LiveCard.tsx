@@ -1,5 +1,6 @@
 import React from 'react';
 import { Play } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface LiveCardProps {
   id: string;
@@ -12,6 +13,7 @@ interface LiveCardProps {
 }
 
 const LiveCard: React.FC<LiveCardProps> = ({
+  id,
   title,
   host,
   thumbnail,
@@ -19,8 +21,17 @@ const LiveCard: React.FC<LiveCardProps> = ({
   isLive,
   type
 }) => {
+  const navigate = useNavigate();
+
+  const handleCardClick = () => {
+    navigate(`/live-shop/product/${id}`);
+  };
+
   return (
-    <div className="relative flex-shrink-0 w-[240px] group cursor-pointer">
+    <div 
+      className="relative flex-shrink-0 w-[240px] group cursor-pointer"
+      onClick={handleCardClick}
+    >
       {/* Image Container */}
       <div className="relative aspect-square rounded-xl overflow-hidden bg-gray-100">
         <img

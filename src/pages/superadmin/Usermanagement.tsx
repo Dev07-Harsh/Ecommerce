@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { UserPlus, Download, Search, Eye } from "lucide-react";
+import { UserPlus, Download, Eye } from "lucide-react";
 
 // Define user type to avoid type issues
 interface User {
@@ -91,7 +91,6 @@ const UserManagement = () => {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
           <div className="flex items-center gap-4 w-full md:w-auto">
             <div className="relative w-full max-w-xs">
-              <Search className="absolute left-3 top-2.5 w-5 h-5 text-gray-400" />
               <input
                 type="text"
                 placeholder="Search name or email..."

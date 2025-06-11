@@ -107,7 +107,7 @@ const RecentlyViewedProducts: React.FC<RecentlyViewedProductsProps> = ({ product
           }
           
           return (
-            <div key={product.id} className="bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer flex flex-col max-w-[280px] w-full mx-auto">
+            <div key={product.id} className="bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer flex flex-col max-w-[280px] w-full mx-auto border border-orange-100 hover:border-orange-300">
               <div className="relative h-[130px] w-full">
                 {/* Product badges */}
                 {tagContent && (

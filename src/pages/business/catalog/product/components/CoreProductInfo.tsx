@@ -6,6 +6,11 @@ import ProductVariants from './ProductVariants';
 import AttributeSelection from './AttributeSelection';
 import { CheckCircleIcon, ShieldExclamationIcon } from '@heroicons/react/24/solid';
 
+// Add className constants
+const labelClassName = "block text-sm font-medium text-gray-700";
+const inputClassName = (hasError: boolean = false) => `mt-1 block w-full rounded-md ${hasError ? 'border-red-300' : 'border-gray-300'} shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm`;
+const errorTextClassName = "mt-1 text-sm text-red-600";
+const sectionTitleClassName = "text-lg font-medium text-gray-900 mb-4";
 
 interface VariantAttribute {
   name: string;
@@ -28,11 +33,12 @@ interface CoreProductInfoProps {
   sku: string;
   costPrice: string;
   sellingPrice: string;
-  specialPrice: string;
-  specialPriceStart: string;
-  specialPriceEnd: string;
   categoryId: number | null;
   brandId: number | null;
+  approval_status?: 'pending' | 'approved' | 'rejected';
+  approved_at?: string | null;
+  approved_by?: number | null;
+  rejection_reason?: string | null;
   onInfoChange: (field: string, value: string) => void;
   onProductCreated?: (productId: number) => void;
   errors?: {
@@ -41,9 +47,6 @@ interface CoreProductInfoProps {
     sku?: string;
     costPrice?: string;
     sellingPrice?: string;
-    specialPrice?: string;
-    specialPriceStart?: string;
-    specialPriceEnd?: string;
     categoryId?: string;
     brandId?: string;
   };
@@ -55,11 +58,12 @@ const CoreProductInfo: React.FC<CoreProductInfoProps> = ({
   sku,
   costPrice,
   sellingPrice,
-  specialPrice,
-  specialPriceStart,
-  specialPriceEnd,
   categoryId,
   brandId,
+  approval_status = 'pending',
+  approved_at = null,
+  approved_by = null,
+  rejection_reason = null,
   onInfoChange,
   onProductCreated,
   errors = {},
@@ -68,6 +72,8 @@ const CoreProductInfo: React.FC<CoreProductInfoProps> = ({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [productId, setProductId] = useState<number | null>(null);
   const [discount, setDiscount] = useState<number>(0);
+  const [categoryName, setCategoryName] = useState<string>('');
+  const [brandName, setBrandName] = useState<string>('');
   
   // Shipping state
   const [weight, setWeight] = useState('');
@@ -91,8 +97,8 @@ const CoreProductInfo: React.FC<CoreProductInfoProps> = ({
   const [metaTitle, setMetaTitle] = useState('');
   const [metaDescription, setMetaDescription] = useState('');
   const [metaKeywords, setMetaKeywords] = useState('');
-  const [shortDescription, setShortDescription] = useState(''); // Used by ProductMeta
-  const [fullDescription, setFullDescription] = useState(''); // Used by ProductMeta
+  const [shortDescription, setShortDescription] = useState('');
+  const [fullDescription, setFullDescription] = useState('');
 
   // Add variants state
   const [variants, setVariants] = useState<Variant[]>([]);
@@ -112,6 +118,54 @@ const CoreProductInfo: React.FC<CoreProductInfoProps> = ({
   // Add new state for attributes
   const [selectedAttributes, setSelectedAttributes] = useState<Record<number, string | string[]>>({});
   const [attributeErrors, setAttributeErrors] = useState<Record<string, any>>({});
+
+  // Fetch category and brand names when IDs change
+  useEffect(() => {
+    const fetchCategoryName = async () => {
+      if (categoryId) {
+        try {
+          const response = await fetch(`${API_BASE_URL}/api/merchant-dashboard/categories/${categoryId}`, {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+              'Content-Type': 'application/json',
+            },
+          });
+          if (response.ok) {
+            const data = await response.json();
+            setCategoryName(data.name);
+          }
+        } catch (error) {
+          console.error('Error fetching category name:', error);
+        }
+      } else {
+        setCategoryName('');
+      }
+    };
+
+    const fetchBrandName = async () => {
+      if (brandId) {
+        try {
+          const response = await fetch(`${API_BASE_URL}/api/merchant-dashboard/brands/${brandId}`, {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+              'Content-Type': 'application/json',
+            },
+          });
+          if (response.ok) {
+            const data = await response.json();
+            setBrandName(data.name);
+          }
+        } catch (error) {
+          console.error('Error fetching brand name:', error);
+        }
+      } else {
+        setBrandName('');
+      }
+    };
+
+    fetchCategoryName();
+    fetchBrandName();
+  }, [categoryId, brandId]);
 
   // Function to generate SKU from product name
   const generateSKU = (productName: string) => {
@@ -172,9 +226,6 @@ const CoreProductInfo: React.FC<CoreProductInfoProps> = ({
           sku: sku,
           cost_price: parseFloat(costPrice) || 0,
           selling_price: parseFloat(sellingPrice) || 0,
-          special_price: specialPrice ? parseFloat(specialPrice) : null,
-          special_start: specialPriceStart || null,
-          special_end: specialPriceEnd || null,
           category_id: categoryId,
           brand_id: brandId,
           discount_percentage: discount,
@@ -269,22 +320,68 @@ const CoreProductInfo: React.FC<CoreProductInfoProps> = ({
     setSelectedAttributes(prev => ({ ...prev, [attributeId]: value }));
   };
 
-  const inputClassName = (hasError?: boolean) =>
-    `mt-1 block w-full rounded-md shadow-sm sm:text-sm p-2.5 ${
-      hasError
-        ? 'border-red-500 text-red-900 placeholder-red-700 focus:ring-red-500 focus:border-red-500'
-        : 'border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500'
-    }`;
+  // Add approval status display component
+  const ApprovalStatusDisplay = () => {
+    const getStatusStyles = () => {
+      switch (approval_status) {
+        case 'approved':
+          return 'bg-green-50 border-green-200 text-green-800';
+        case 'rejected':
+          return 'bg-red-50 border-red-200 text-red-800';
+        case 'pending':
+        default:
+          return 'bg-yellow-50 border-yellow-200 text-yellow-800';
+      }
+    };
 
-  const labelClassName = "block text-sm font-medium text-gray-700 mb-1";
-  const errorTextClassName = "mt-1 text-sm text-red-600";
-  const sectionTitleClassName = "text-lg font-semibold text-gray-800 mb-4 border-b pb-3 pt-2";
+    const getStatusText = () => {
+      switch (approval_status) {
+        case 'approved':
+          return 'Approved';
+        case 'rejected':
+          return 'Rejected';
+        case 'pending':
+        default:
+          return 'Pending Approval';
+      }
+    };
 
+    return (
+      <div className={`p-4 rounded-lg border ${getStatusStyles()}`}>
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-medium">Approval Status</h3>
+            <p className="text-sm mt-1">{getStatusText()}</p>
+            {approval_status === 'approved' && approved_at && (
+              <p className="text-xs mt-1">Approved on: {new Date(approved_at).toLocaleDateString()}</p>
+            )}
+            {approval_status === 'rejected' && rejection_reason && (
+              <p className="text-xs mt-1 text-red-600">Reason: {rejection_reason}</p>
+            )}
+          </div>
+          {approval_status === 'rejected' && (
+            <button
+              onClick={() => {
+                // Reset approval status to pending when resubmitting
+                onInfoChange('approval_status', 'pending');
+              }}
+              className="text-sm text-orange-600 hover:text-orange-700 font-medium"
+            >
+              Resubmit for Approval
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-8">
-      <form onSubmit={handleSubmit} className="space-y-6 bg-white shadow-sm rounded-lg border border-gray-200 p-6">
-        <h2 className={sectionTitleClassName}>Core Product Information</h2>
+      {/* Add Approval Status Display at the top */}
+      <ApprovalStatusDisplay />
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+
         {/* Category and Brand Selection Status */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
@@ -293,9 +390,9 @@ const CoreProductInfo: React.FC<CoreProductInfoProps> = ({
                 !categoryId ? 'bg-yellow-50 border-yellow-300 text-yellow-700' : 'bg-green-50 border-green-300 text-green-700'
               }`}>
               {categoryId ? <CheckCircleIcon className="h-5 w-5 mr-2 text-green-500" /> : <ShieldExclamationIcon className="h-5 w-5 mr-2 text-yellow-500" />}
-              {categoryId ? `Category Selected (ID: ${categoryId})` : 'Please select a category'}
+              {categoryId ? `Category: ${categoryName}` : 'Please select a category'}
             </div>
-            {errors.categoryId && !categoryId && ( // Show error only if not selected
+            {errors.categoryId && !categoryId && (
               <p className={errorTextClassName}>{errors.categoryId}</p>
             )}
           </div>
@@ -306,9 +403,9 @@ const CoreProductInfo: React.FC<CoreProductInfoProps> = ({
                 !brandId ? 'bg-yellow-50 border-yellow-300 text-yellow-700' : 'bg-green-50 border-green-300 text-green-700'
               }`}>
               {brandId ? <CheckCircleIcon className="h-5 w-5 mr-2 text-green-500" /> : <ShieldExclamationIcon className="h-5 w-5 mr-2 text-yellow-500" />}
-              {brandId ? `Brand Selected (ID: ${brandId})` : 'Please select a brand'}
+              {brandId ? `Brand: ${brandName}` : 'Please select a brand'}
             </div>
-            {errors.brandId && !brandId && ( // Show error only if not selected
+            {errors.brandId && !brandId && (
               <p className={errorTextClassName}>{errors.brandId}</p>
             )}
           </div>
@@ -360,9 +457,9 @@ const CoreProductInfo: React.FC<CoreProductInfoProps> = ({
 
         {/* Discount Display */}
 {(parseFloat(costPrice) > 0 && parseFloat(sellingPrice) > 0) && (
-  <div className="bg-blue-50 p-4 rounded-md border border-blue-200">
+  <div className="bg-orange-50 p-4 rounded-md border border-orange-200">
     <div className="flex items-center justify-between">
-      <span className="text-sm font-medium text-blue-700">
+      <span className="text-sm font-medium text-orange-700">
         Calculated {discount >= 0 ? 'Discount' : 'Markup'}
       </span>
       <span
@@ -382,7 +479,7 @@ const CoreProductInfo: React.FC<CoreProductInfoProps> = ({
       </span>
     </div>
     {discount !== 0 && (
-      <p className="mt-1 text-sm text-blue-600">
+      <p className="mt-1 text-sm text-orange-600">
         Based on cost price of ${parseFloat(costPrice).toFixed(2)} and selling
         price of ${parseFloat(sellingPrice).toFixed(2)}.
       </p>
@@ -448,8 +545,8 @@ const CoreProductInfo: React.FC<CoreProductInfoProps> = ({
         </div>
 
         {submitError && (
-          <div className="p-4 my-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-700 text-sm">{submitError}</p>
+          <div className="mt-6 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+            {submitError}
           </div>
         )}
 
@@ -457,11 +554,9 @@ const CoreProductInfo: React.FC<CoreProductInfoProps> = ({
           <button
             type="submit"
             disabled={isSubmitting || !categoryId || !brandId}
-
-            className="px-6 py-2.5 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
-
+            className="px-6 py-2.5 text-sm font-medium text-white bg-orange-600 border border-transparent rounded-md hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isSubmitting ? 'Saving Core Info...' : (productId ? 'Update Core Info' : 'Save Core Info & Continue')}
+            {isSubmitting ? 'Saving...' : approval_status === 'rejected' ? 'Resubmit Product' : 'Save Product'}
           </button>
         </div>
       </form>
@@ -473,7 +568,7 @@ const CoreProductInfo: React.FC<CoreProductInfoProps> = ({
           <div className="bg-white shadow-sm rounded-lg border border-gray-200 p-6">
             <AttributeSelection
               categoryId={categoryId}
-              productId={productId} // Pass productId here
+              productId={productId}
               selectedAttributes={selectedAttributes}
               onAttributeSelect={handleAttributeSelect}
               errors={attributeErrors}
@@ -490,7 +585,7 @@ const CoreProductInfo: React.FC<CoreProductInfoProps> = ({
             <div className="bg-white shadow-sm rounded-lg border border-gray-200 p-6">
               <ProductMediaUpload
                 productId={productId}
-                onMediaChange={(mediaFiles) => console.log('Media updated in Core:', mediaFiles)} // Placeholder
+                onMediaChange={(mediaFiles) => console.log('Media updated in Core:', mediaFiles)}
               />
             </div>
           </div>
@@ -507,7 +602,6 @@ const CoreProductInfo: React.FC<CoreProductInfoProps> = ({
                 shippingClass={shippingClass}
                 onShippingChange={handleShippingChange}
                 onDimensionsChange={handleDimensionsChange}
-                // errors for shipping can be managed within ShippingDetails or passed down
               />
             </div>
           </div>
@@ -527,23 +621,19 @@ const CoreProductInfo: React.FC<CoreProductInfoProps> = ({
               )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-
                   <label htmlFor="stock_qty" className={labelClassName}>Stock Quantity</label>
                   <input type="number" id="stock_qty" value={stockQty} onChange={(e) => setStockQty(e.target.value)} min="0" className={inputClassName()} />
                 </div>
                 <div>
                   <label htmlFor="low_stock_threshold" className={labelClassName}>Low Stock Threshold</label>
                   <input type="number" id="low_stock_threshold" value={lowStockThreshold} onChange={(e) => setLowStockThreshold(e.target.value)} min="0" className={inputClassName()} />
-
                 </div>
               </div>
               <div className="mt-6 flex justify-end">
                 <button
                   onClick={handleUpdateStock}
                   disabled={isUpdatingStock}
-
                   className="px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
-
                 >
                   {isUpdatingStock ? 'Updating Stock...' : 'Update Stock'}
                 </button>
@@ -559,10 +649,9 @@ const CoreProductInfo: React.FC<CoreProductInfoProps> = ({
                 metaTitle={metaTitle}
                 metaDescription={metaDescription}
                 metaKeywords={metaKeywords}
-                shortDescription={shortDescription} // This is the detailed short description
-                fullDescription={fullDescription}   // This is the detailed full description
+                shortDescription={shortDescription}
+                fullDescription={fullDescription}
                 onMetaChange={handleMetaChange}
-                // errors for meta can be managed within ProductMeta or passed down
               />
             </div>
           </div>
@@ -576,6 +665,7 @@ const CoreProductInfo: React.FC<CoreProductInfoProps> = ({
                 onVariantsChange={handleVariantsChange}
                 errors={variantErrors}
                 categoryId={categoryId}
+                baseSku={sku}
               />
             </div>
           </div>

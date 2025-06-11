@@ -152,6 +152,23 @@ export const dashboardSections = [
         description: "Monitor and address platform health"
       }
     ]
+  },
+  {
+    category: "Support",
+    color: "indigo",
+    icon: MessageSquare,
+    items: [
+      {
+        title: "User Support",
+        icon: MessageSquare,
+        description: "Support for platform users"
+      },
+      {
+        title: "Merchant Support",
+        icon: MessageSquare,
+        description: "Support for merchants"
+      }
+    ]
   }
 ];
 

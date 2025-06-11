@@ -2,9 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import CategorySelection from '../components/CategorySelection';
 import BrandSelection from '../components/BrandSelection';
-import TaxCategorySelection from '../components/TaxCategorySelection';
 import CoreProductInfo from '../components/CoreProductInfo';
-
 
 interface AddProductsProps {
   mode?: 'new' | 'edit' | 'view';
@@ -12,8 +10,7 @@ interface AddProductsProps {
 
 const steps = [
   'Category & Brand',
-  'Tax Category',
-  'Product Details', // Changed from 'Core Info'
+  'Product Details',
 ];
 
 const AddProducts: React.FC<AddProductsProps> = ({ mode = 'new' }) => {
@@ -30,7 +27,6 @@ const AddProducts: React.FC<AddProductsProps> = ({ mode = 'new' }) => {
   const [formData, setFormData] = useState({
     categoryId: null as number | null,
     brandId: null as number | null,
-    taxCategoryId: null as number | null,
     // CoreProductInfo fields are now managed within CoreProductInfo component initially
     // but we can pre-populate them here if needed, or pass them up on save from CoreProductInfo
     name: '',
@@ -38,36 +34,14 @@ const AddProducts: React.FC<AddProductsProps> = ({ mode = 'new' }) => {
     sku: '',
     costPrice: '',
     sellingPrice: '',
-    specialPrice: '',
-    specialPriceStart: '',
-    specialPriceEnd: '',
-    // Fields managed by sub-components of CoreProductInfo (or CoreProductInfo itself)
-    // media: [] as File[],
-    // weight: '',
-    // dimensions: { length: '', width: '', height: '' },
-    // shippingClass: '',
-    // metaTitle: '',
-    // metaDescription: '',
-    // metaKeywords: '',
-    // variants: [] as any[],
   });
 
   useEffect(() => {
     if (mode !== 'new' && id) {
       console.log('Fetching product data for ID:', id);
-      // For edit mode, you would typically fetch all product data and populate
-      // not just formData but also states within CoreProductInfo and its sub-components.
-      // This might involve a more complex data loading strategy.
-      // For now, this POC focuses on 'new' mode structure.
-      // fetchProductData(id); // Implement if edit mode needs full pre-population here
       setCreatedProductId(parseInt(id)); // Assume ID is the created product ID for edit mode
     }
   }, [mode, id]);
-
-
-  // const fetchProductData = async (productId: string) => {
-  //   // ... (implementation for fetching and setting ALL form data for edit mode)
-  // };
 
   const handleNext = () => {
     if (validateStep()) {
@@ -87,20 +61,10 @@ const AddProducts: React.FC<AddProductsProps> = ({ mode = 'new' }) => {
         // Brand validation might be conditional if a category doesn't require a brand
         if (formData.categoryId && !formData.brandId) newErrors.brandId = 'Brand is required';
         break;
-      case 1: // Tax Category
-        if (!formData.taxCategoryId) newErrors.taxCategoryId = 'Tax category is required';
-        break;
-      case 2: // Product Details (Core Info)
-        // Validation for CoreProductInfo fields like name, SKU, price would ideally happen
-        // within CoreProductInfo or be triggered from there.
-        // For simplicity in AddProducts, we might only check if the product was "created" (i.e., createdProductId is set)
-        // if CoreProductInfo handles its own save.
-        // If CoreProductInfo data is passed up to AddProducts, then validate here:
+      case 1: // Product Details
         if (!formData.name) newErrors.name = 'Product name is required';
         if (!formData.sku) newErrors.sku = 'SKU is required';
         if (!formData.sellingPrice) newErrors.sellingPrice = 'Selling price is required';
-        // If CoreProductInfo has its own save button, this step might not need explicit validation here
-        // if the "Next" button is replaced by a "Finish" or "Save Product" button on the last step.
         break;
     }
     setErrors(newErrors);
@@ -109,21 +73,18 @@ const AddProducts: React.FC<AddProductsProps> = ({ mode = 'new' }) => {
 
   // This handleSubmit is for the final "Create Product" or "Update Product" action for the whole flow
   const handleFinalSubmit = async () => {
-    // This function would be more complex, potentially gathering data from CoreProductInfo
-    // if it hasn't saved its sections individually.
-    // For this structure, CoreProductInfo and its children handle their own saves.
-    // So, this might just be a "Finish" action.
+    if (!validateStep()) return;
 
-    if (!validateStep()) return; // Validate the current step's requirements if any
-
-    // Assuming all data is saved by sub-components or CoreProductInfo.
-    // Navigate to product list or product view page.
     setLoading(true);
-    console.log('Finalizing product creation/update...');
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setLoading(false);
-    navigate('/business/catalog/products'); // Or to the new/edited product's page
+    try {
+      // Here you would typically make an API call to finalize the product
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      navigate('/business/catalog/products');
+    } catch (error) {
+      setErrors(prev => ({ ...prev, submit: 'Failed to save product' }));
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Callback for CoreProductInfo to inform AddProducts that the product's core details are saved
@@ -138,7 +99,6 @@ const AddProducts: React.FC<AddProductsProps> = ({ mode = 'new' }) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-
   const renderStepContent = () => {
     switch (activeStep) {
       case 0:
@@ -151,18 +111,9 @@ const AddProducts: React.FC<AddProductsProps> = ({ mode = 'new' }) => {
               onBrandSelect={(brandId) => setFormData({ ...formData, brandId })} // Pass this for UI update in CategorySelection
               errors={errors}
             />
-            {/* BrandSelection is now part of CategorySelection component display logic */}
           </div>
         );
       case 1:
-        return (
-          <TaxCategorySelection
-            selectedTaxCategoryId={formData.taxCategoryId}
-            onTaxCategorySelect={(taxId) => setFormData({ ...formData, taxCategoryId: taxId })}
-            errors={errors}
-          />
-        );
-      case 2:
         return (
           <CoreProductInfo
             // Pass existing core fields from formData
@@ -171,9 +122,6 @@ const AddProducts: React.FC<AddProductsProps> = ({ mode = 'new' }) => {
             sku={formData.sku}
             costPrice={formData.costPrice}
             sellingPrice={formData.sellingPrice}
-            specialPrice={formData.specialPrice}
-            specialPriceStart={formData.specialPriceStart}
-            specialPriceEnd={formData.specialPriceEnd}
             // Pass IDs needed by CoreProductInfo
             categoryId={formData.categoryId}
             brandId={formData.brandId}
@@ -192,7 +140,7 @@ const AddProducts: React.FC<AddProductsProps> = ({ mode = 'new' }) => {
   if (loading && mode === 'new') { // Keep loading for initial fetch if edit/view
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
       </div>
     );
   }
@@ -200,7 +148,7 @@ const AddProducts: React.FC<AddProductsProps> = ({ mode = 'new' }) => {
   const currentStepTitle = steps[activeStep];
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="container mx-auto px-4 py-8">
         <div className="mb-6 p-4 bg-white shadow rounded-lg border border-gray-200">
             <h1 className="text-2xl font-semibold text-gray-800">
                 {mode === 'edit' ? 'Edit Product' : mode === 'view' ? 'View Product' : 'Add New Product'}
@@ -208,7 +156,7 @@ const AddProducts: React.FC<AddProductsProps> = ({ mode = 'new' }) => {
             <p className="text-sm text-gray-500">Step {activeStep + 1} of {steps.length}: {currentStepTitle}</p>
             {/* Progress Bar (Optional) */}
             <div className="mt-3 bg-gray-200 rounded-full h-2.5">
-                <div className="bg-primary-600 h-2.5 rounded-full" style={{ width: `${((activeStep + 1) / steps.length) * 100}%` }}></div>
+                <div className="bg-orange-600 h-2.5 rounded-full" style={{ width: `${((activeStep + 1) / steps.length) * 100}%` }}></div>
             </div>
         </div>
 
@@ -223,11 +171,9 @@ const AddProducts: React.FC<AddProductsProps> = ({ mode = 'new' }) => {
           <button
             type="button"
             onClick={handleBack}
-
             disabled={activeStep === 0 || loading}
-            className={`px-6 py-2.5 text-sm font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-opacity ${
+            className={`px-6 py-2.5 text-sm font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition-opacity ${
               activeStep === 0 || loading ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50' : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
-
             }`}
           >
             Back
@@ -235,11 +181,9 @@ const AddProducts: React.FC<AddProductsProps> = ({ mode = 'new' }) => {
           {activeStep === steps.length - 1 ? (
             <button
               type="button"
-
-              onClick={handleFinalSubmit} // Changed from handleSubmit to handleFinalSubmit
-              disabled={loading || (mode === 'new' && !createdProductId && activeStep === steps.length-1) } // Disable if core product not saved in 'new' mode on last step
-              className="px-6 py-2.5 text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
-
+              onClick={handleFinalSubmit}
+              disabled={loading || (mode === 'new' && !createdProductId && activeStep === steps.length-1)}
+              className="px-6 py-2.5 text-sm font-medium rounded-md shadow-sm text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Saving...' : (mode === 'edit' ? 'Update Product' : 'Finish & Create Product')}
             </button>
@@ -247,10 +191,8 @@ const AddProducts: React.FC<AddProductsProps> = ({ mode = 'new' }) => {
             <button
               type="button"
               onClick={handleNext}
-
               disabled={loading}
-              className="px-6 py-2.5 text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
-
+              className="px-6 py-2.5 text-sm font-medium rounded-md shadow-sm text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 disabled:opacity-50"
             >
               Next
             </button>

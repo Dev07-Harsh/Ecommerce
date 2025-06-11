@@ -118,42 +118,70 @@ const Products: React.FC = () => {
     }));
   };
 
-  // Render category tree recursively
+  // Helper: find category depth and if leaf
+  const getCategoryDepth = (cat: Category, parentDepth = 0): number => {
+    if (!cat.children || cat.children.length === 0) return parentDepth;
+    return Math.max(...cat.children.map(child => getCategoryDepth(child, parentDepth + 1)));
+  };
+  const isLeaf = (cat: Category) => !cat.children || cat.children.length === 0;
+
+  // Render category tree recursively (Figma style)
   const renderCategoryTree = (category: Category, level: number = 0) => {
     const isExpanded = expandedCategories[category.category_id] || false;
     const hasSubcategories = category.children && category.children.length > 0;
+    const isSelected = selectedCategory === String(category.category_id);
+    const isLeafCategory = !category.children || category.children.length === 0;
+
+    // Style logic
+    let btnClass = 'w-full flex items-center justify-between py-2 px-2 transition-colors border-none text-left font-normal';
+    let spanClass = 'text-sm font-normal';
+    if (level === 0) {
+      btnClass += ' bg-transparent text-black hover:bg-orange-50 rounded-none';
+    } else if (hasSubcategories) {
+      if (isSelected) {
+        btnClass += ' bg-white border border-[#F2631F] text-black rounded-md shadow-sm';
+      } else {
+        btnClass += ' bg-transparent text-black hover:bg-orange-50 rounded-md';
+      }
+    } else {
+      if (isSelected) {
+        btnClass += ' bg-[#F2631F] text-white rounded-md shadow';
+      } else {
+        btnClass += ' bg-transparent text-black hover:bg-orange-50 rounded-md';
+      }
+    }
 
     return (
       <div key={category.category_id}>
         <button
-          onClick={() => setSelectedCategory(String(category.category_id))}
-          className={`w-full flex items-center justify-between py-1.5 hover:text-gray-700 transition-colors ${
-            selectedCategory === String(category.category_id) ? 'text-primary-500 font-medium' : ''
-          }`}
-          style={{ paddingLeft: `${level * 1.5}rem` }}
+          onClick={() => {
+            if (hasSubcategories) {
+              toggleCategoryExpand(category.category_id);
+            } else {
+              setSelectedCategory(String(category.category_id));
+              // Update URL with selected category
+              const params = new URLSearchParams(location.search);
+              params.set('category', String(category.category_id));
+              navigate(`?${params.toString()}`);
+            }
+          }}
+          className={btnClass}
+          style={{ paddingLeft: `${level * 1.25}rem` }}
         >
-          <div className="flex items-center">
-            {hasSubcategories && (
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleCategoryExpand(category.category_id);
-                }}
-                className="p-1 rounded-full hover:bg-gray-100 mr-1"
-              >
-                {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              </button>
-            )}
-            <span className="text-sm">{category.name}</span>
-          </div>
-          {!hasSubcategories && <ChevronRight className="h-4 w-4" />}
+          <span className={spanClass}>{category.name}</span>
+          {hasSubcategories && (
+            <span className="flex items-center ml-auto">
+              {isExpanded ? (
+                <ChevronUp size={16} className="text-[#F2631F]" />
+              ) : (
+                <ChevronDown size={16} className="text-[#F2631F]" />
+              )}
+            </span>
+          )}
         </button>
-
         {isExpanded && category.children && (
-          <div className="ml-2">
-            {category.children.map(subcategory => 
-              renderCategoryTree(subcategory, level + 1)
-            )}
+          <div className="ml-0">
+            {category.children.map(subcategory => renderCategoryTree(subcategory, level + 1))}
           </div>
         )}
       </div>
@@ -173,11 +201,20 @@ const Products: React.FC = () => {
         order: 'desc'
       });
 
+      // Get URL parameters
+      const urlParams = new URLSearchParams(location.search);
+      const categoryId = urlParams.get('category');
+      const brandId = urlParams.get('brand');
+
       // Add filters if they exist
-      if (selectedCategory) {
-        params.append('category_id', selectedCategory);
+      if (categoryId) {
+        params.append('category_id', categoryId);
       }
-      if (selectedBrands.length > 0) {
+      if (brandId) {
+        params.append('brand_id', brandId);
+        // If brand is selected via URL, update selectedBrands
+        setSelectedBrands([brandId]);
+      } else if (selectedBrands.length > 0) {
         params.append('brand_id', selectedBrands.join(','));
       }
       if (priceRange[0] > 0) {
@@ -190,7 +227,9 @@ const Products: React.FC = () => {
         params.append('search', searchQuery);
       }
 
+      // Always use the main products endpoint with filters
       const apiUrl = `${API_BASE_URL}/api/products?${params}`;
+
       console.log('Fetching products with URL:', apiUrl);
 
       const response = await fetch(apiUrl, {
@@ -210,13 +249,32 @@ const Products: React.FC = () => {
       setProducts(data.products);
       setTotalPages(data.pagination.pages);
       setTotalProducts(data.pagination.total);
+
+      // Update selected category if coming from navigation
+      if (categoryId && !selectedCategory) {
+        setSelectedCategory(categoryId);
+      }
     } catch (err) {
-      console.error('Error in fetchProducts:', err);
+      console.error('Error fetching products:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch products');
     } finally {
       setLoading(false);
     }
   };
+
+  // Update URL when brand selection changes
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (selectedBrands.length > 0) {
+      const brand = brands.find(b => String(b.brand_id) === selectedBrands[0]);
+      if (brand) {
+        params.set('brand', brand.slug);
+      }
+    } else {
+      params.delete('brand');
+    }
+    navigate(`?${params.toString()}`);
+  }, [selectedBrands, brands, navigate, location.search]);
 
   // Update fetchCategories to use the new categories endpoint
   const fetchCategories = async () => {
@@ -273,11 +331,22 @@ const Products: React.FC = () => {
   
   // Toggle brand selection
   const toggleBrand = (brand: string) => {
-    setSelectedBrands(prev => 
-      prev.includes(brand) 
-        ? prev.filter(b => b !== brand)
-        : [...prev, brand]
-    );
+    setSelectedBrands(prev => {
+      const newBrands = prev.includes(brand)
+        ? [] // Clear selection if clicking the same brand
+        : [brand]; // Select only one brand at a time
+      
+      // Update URL with selected brand
+      const params = new URLSearchParams(location.search);
+      if (newBrands.length > 0) {
+        params.set('brand', newBrands[0]);
+      } else {
+        params.delete('brand');
+      }
+      navigate(`?${params.toString()}`);
+      
+      return newBrands;
+    });
   };
 
   // Toggle color selection
@@ -297,6 +366,13 @@ const Products: React.FC = () => {
     setSelectedColors([]);
     setPriceRange([0, 1000000]);
     setCurrentPage(1);
+    
+    // Clear URL parameters
+    const params = new URLSearchParams(location.search);
+    params.delete('category');
+    params.delete('brand');
+    params.delete('search');
+    navigate(`?${params.toString()}`);
   };
 
   if (loading && products.length === 0) {
@@ -334,9 +410,9 @@ const Products: React.FC = () => {
         
         <div className="flex flex-col md:flex-row gap-6">
           {/* Category Sidebar */}
-          <div className="w-full md:w-56 pr-4">
+          <aside className="w-full md:w-64 pr-4 border-r border-gray-100">
             <div className="mb-8">
-              <h3 className="font-medium text-base mb-3">Category</h3>
+              <h3 className="font-semibold text-base mb-3 text-black">Category</h3>
               <div className="space-y-1">
                 {categories.map(category => renderCategoryTree(category))}
               </div>
@@ -344,36 +420,39 @@ const Products: React.FC = () => {
             
             {/* Brand Filter */}
             <div className="mb-8">
-              <h3 className="font-medium text-base mb-3">Brand</h3>
+              <h3 className="font-semibold text-base mb-3 text-black">Brand</h3>
               <div className="flex flex-wrap gap-2">
-                {brands && brands.map((brand) => (
-                  <button
-                    key={brand.brand_id || brand.id}
-                    onClick={() => toggleBrand(String(brand.brand_id || brand.id))}
-                    className={`px-2 py-1.5 border rounded-sm text-xs transition-colors ${
-                      selectedBrands.includes(String(brand.brand_id || brand.id))
-                        ? 'bg-primary-500 text-white border-primary-500'
-                        : 'border-gray-200 hover:bg-gray-100'
-                    }`}
-                  >
-                    {brand.name || brand.brand_name}
-                  </button>
-                ))}
+                {brands && brands.map((brand) => {
+                  const isSelected = selectedBrands.includes(String(brand.brand_id || brand.id));
+                  return (
+                    <button
+                      key={brand.brand_id || brand.id}
+                      onClick={() => toggleBrand(String(brand.brand_id || brand.id))}
+                      className={`px-3 py-1.5 rounded-full border text-xs font-normal transition-colors focus:outline-none ${
+                        isSelected
+                          ? 'bg-[#F2631F] text-white border-[#F2631F] shadow'
+                          : 'bg-gray-100 border-gray-200 text-black hover:border-[#F2631F] hover:text-[#F2631F]'
+                      }`}
+                    >
+                      {brand.name || brand.brand_name}
+                    </button>
+                  );
+                })}
               </div>
             </div>
             
             {/* Price Range */}
             <div className="mb-8">
-              <h3 className="font-medium text-base mb-3">Price</h3>
+              <h3 className="font-semibold text-base mb-3 text-black">Price</h3>
               <div className="px-2">
-                <div className="flex justify-between text-xs text-gray-500 mb-2">
+                <div className="flex justify-between text-xs text-gray-700 mb-2 font-normal">
                   <span>₹{priceRange[0]}</span>
                   <span>₹{priceRange[1]}</span>
                 </div>
                 <div className="relative pt-1">
                   <div className="w-full h-1 bg-gray-200 rounded-lg">
-                    <div 
-                      className="absolute h-1 bg-primary-500 rounded-lg"
+                    <div
+                      className="absolute h-1 bg-[#F2631F] rounded-lg"
                       style={{ width: `${(priceRange[1] / 1000000) * 100}%` }}
                     ></div>
                   </div>
@@ -383,7 +462,7 @@ const Products: React.FC = () => {
                     max="1000000"
                     step="10000"
                     value={priceRange[1]}
-                    onChange={(e) => setPriceRange([priceRange[0], parseInt(e.target.value)])}
+                    onChange={e => setPriceRange([priceRange[0], parseInt(e.target.value)])}
                     className="absolute top-0 w-full h-2 opacity-0 cursor-pointer"
                   />
                 </div>
@@ -393,11 +472,11 @@ const Products: React.FC = () => {
             {/* Reset Filters */}
             <button
               onClick={resetFilters}
-              className="w-full px-4 py-2 text-sm text-primary-500 border border-primary-500 rounded hover:bg-primary-50"
+              className="w-full px-4 py-2 text-sm font-normal text-[#F2631F] border border-[#F2631F] rounded hover:bg-orange-50 transition-colors"
             >
               Reset Filters
             </button>
-          </div>
+          </aside>
           
           {/* Products Grid */}
           <div className="flex-1">
@@ -416,13 +495,13 @@ const Products: React.FC = () => {
               {products.map((product) => (
                 <div 
                   key={product.id}
-                  onClick={() => handleProductClick(product.id)}
+                  onClick={() => handleProductClick(String(product.id))}
                   className="cursor-pointer"
                 >
                   <ProductCard 
                     product={product}
-                    isNew={product.isNew}
-                    isBuiltIn={product.isBuiltIn}
+                    isNew={product.isNew ?? false}
+                    isBuiltIn={product.isBuiltIn ?? false}
                   />
                 </div>
               ))}
@@ -476,12 +555,13 @@ const Products: React.FC = () => {
               {recentlyViewed.map((product) => (
                 <div 
                   key={product.id}
-                  onClick={() => handleProductClick(product.id)}
+                  onClick={() => handleProductClick(String(product.id))}
                   className="cursor-pointer"
                 >
                   <ProductCard
                     product={product}
-                    isNew={product.isNew}
+                    isNew={product.isNew ?? false}
+                    isBuiltIn={product.isBuiltIn ?? false}
                   />
                 </div>
               ))}

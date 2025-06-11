@@ -283,7 +283,6 @@ const UserActivity = () => {
             {/* Search & Export */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between my-6 gap-4">
               <div className="relative w-full md:max-w-sm">
-                <Search className="absolute left-3 top-2.5 w-5 h-5 text-gray-400" />
                 <input
                   type="text"
                   placeholder="Search user or activity..."

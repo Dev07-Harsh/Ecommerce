@@ -70,6 +70,15 @@ const dashboardSections = [
       { title: "Fraud", icon: ShieldCheck },
       { title: "Health", icon: ShieldCheck }
     ]
+  },
+  {
+    category: "Support",
+    color: "indigo",
+    icon: MessageSquare,
+    items: [
+      { title: "User Support", icon: MessageSquare },
+      { title: "Merchant Support", icon: MessageSquare }
+    ]
   }
 ];
 

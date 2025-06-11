@@ -2,7 +2,11 @@ import React, { useRef } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import LiveCard from '../../data/LiveCard';
 
-const AoinLive: React.FC = () => {
+interface AoinLiveProps {
+  layout?: 'row' | 'grid';
+}
+
+const AoinLive: React.FC<AoinLiveProps> = ({ layout = 'row' }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const handleScroll = (direction: 'left' | 'right') => {
@@ -28,7 +32,8 @@ const AoinLive: React.FC = () => {
       thumbnail: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=500&h=500&fit=crop',
       viewers: 423,
       isLive: true,
-      type: 'Live'
+      type: 'Live',
+      productId: 'fashion-1'
     },
     {
       id: '2',
@@ -37,7 +42,8 @@ const AoinLive: React.FC = () => {
       thumbnail: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=500&h=500&fit=crop',
       viewers: 423,
       isLive: true,
-      type: 'Live'
+      type: 'Live',
+      productId: 'fashion-2'
     },
     {
       id: '3',
@@ -46,7 +52,8 @@ const AoinLive: React.FC = () => {
       thumbnail: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500&h=500&fit=crop',
       viewers: 423,
       isLive: true,
-      type: 'Live'
+      type: 'Live',
+      productId: 'fashion-3'
     },
     {
       id: '4',
@@ -55,7 +62,8 @@ const AoinLive: React.FC = () => {
       thumbnail: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=500&h=500&fit=crop',
       viewers: 423,
       isLive: true,
-      type: 'Live'
+      type: 'Live',
+      productId: 'fashion-4'
     },
     {
       id: '5',
@@ -64,10 +72,13 @@ const AoinLive: React.FC = () => {
       thumbnail: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=500&h=500&fit=crop',
       viewers: 423,
       isLive: true,
-      type: 'Live'
+      type: 'Live',
+      productId: 'fashion-5'
     }
   ];
 
+  // Row layout (for LiveShop page)
+  if (layout === 'row') {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -102,6 +113,30 @@ const AoinLive: React.FC = () => {
         >
           <ChevronRight className="w-5 h-5 text-white" />
         </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Grid layout (for standalone page)
+  return (
+    <div className="bg-white min-h-screen">
+      <div className="max-w-[1440px] mx-auto px-16 py-8">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-[36px] font-medium text-[#FF4D00]">AOIN LIVE</h1>
+        </div>
+        
+        <div className="grid grid-cols-5 gap-6 mb-8">
+          {liveContent.map((item) => (
+            <LiveCard key={item.id} {...item} />
+          ))}
+        </div>
+
+        <div className="flex justify-center">
+          <button className="bg-[#FF4D00] hover:bg-[#FF4D00]/90 text-white px-8 py-3 rounded-lg font-medium transition-colors duration-200">
+            See More
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -146,7 +146,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       name: `${userData.first_name || ''} ${userData.last_name || ''}`.trim() || 'User',
       role: role,
       isEmailVerified: userData.is_email_verified || false,
-      verificationStatus: userData.verification_status || 'not_submitted'
+      verificationStatus: userData.verification_status || 'not_submitted',
+      businessName: userData.business_name || ''
     };
   };
 

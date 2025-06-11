@@ -84,7 +84,7 @@ const Categories: React.FC = () => {
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold">Shop By Categories</h2>
           <div className="flex items-center">
-            <Link to="/categories" className="text-orange-500 text-sm font-medium mr-4">
+            <Link to="/all-products" className="text-orange-500 text-sm font-medium mr-4">
               See All
             </Link>
             <div className="flex space-x-2">

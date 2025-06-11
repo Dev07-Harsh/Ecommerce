@@ -4,7 +4,6 @@ import { toast } from 'react-hot-toast';
 import { PlusIcon, TrashIcon, EyeIcon, StarIcon as SolidStarIcon, ShoppingBagIcon, ChevronDownIcon } from '@heroicons/react/24/solid';
 import { StarIcon as OutlineStarIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'; 
 
-
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 interface MerchantProduct {
@@ -24,30 +23,42 @@ interface ProductPlacement {
   product_details: {
     product_id: number;
     product_name: string;
+    original_price?: number;
+    promotional_price?: number;
+    special_start?: string;
+    special_end?: string;
   };
 }
 
-
-
-interface MerchantProfileData { // For the fetched merchant profile
-    id: number;
-    // ... other fields from your /merchant/profile endpoint ...
-    can_place_premium: boolean; 
-    // Add other relevant fields like business_name if you want to display them
+interface SubscriptionStatus {
+  is_subscribed: boolean;
+  can_place_premium: boolean;
+  subscription_started_at: string | null;
+  subscription_expires_at: string | null;
+  plan: {
+    plan_id: number;
+    name: string;
+    description: string;
+    featured_limit: number;
+    promo_limit: number;
+    duration_days: number;
+    price: number;
+    can_place_premium: boolean;
+  } | null;
 }
 
 const ProductPlacements: React.FC = () => {
   const { accessToken, user } = useAuth();
   
-  // State for the fetched merchant profile
-  const [merchantProfile, setMerchantProfile] = useState<MerchantProfileData | null>(null);
-  const [isProfileLoading, setIsProfileLoading] = useState(true);
-  const [profileError, setProfileError] = useState<string | null>(null);
+  // State for subscription status
+  const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus | null>(null);
+  const [isSubscriptionLoading, setIsSubscriptionLoading] = useState(true);
+  const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
 
   const [placements, setPlacements] = useState<ProductPlacement[]>([]);
   const [merchantProducts, setMerchantProducts] = useState<MerchantProduct[]>([]);
   
-  const [isLoadingData, setIsLoadingData] = useState(true); // For products and placements
+  const [isLoadingData, setIsLoadingData] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState<number | null>(null);
 
@@ -59,41 +70,49 @@ const ProductPlacements: React.FC = () => {
   
   const PLACEMENT_LIMIT = 10;
 
+  const [promotionalPrice, setPromotionalPrice] = useState<string>('');
+  const [specialStartDate, setSpecialStartDate] = useState<string>('');
+  const [specialEndDate, setSpecialEndDate] = useState<string>('');
+
   useEffect(() => {
-    const fetchMerchantProfile = async () => {
+    const fetchSubscriptionStatus = async () => {
       if (!accessToken || !user) {
-        setIsProfileLoading(false);
-        setProfileError("User not authenticated."); // Should be handled by AdminLayout, but good to have a check
+        setIsSubscriptionLoading(false);
+        setSubscriptionError("User not authenticated.");
         return;
       }
-      setIsProfileLoading(true);
-      setProfileError(null);
+      setIsSubscriptionLoading(true);
+      setSubscriptionError(null);
       try {
-        const response = await fetch(`${API_BASE_URL}/api/auth/merchant/profile`, { // Ensure this is the correct endpoint
+        console.log('Fetching subscription status...');
+        const response = await fetch(`${API_BASE_URL}/api/merchant-dashboard/subscription/current`, {
           headers: { 'Authorization': `Bearer ${accessToken}` },
         });
+        
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.message || `Failed to fetch merchant profile (${response.status})`);
+          console.error('Subscription status error:', errorData);
+          throw new Error(errorData.message || `Failed to fetch subscription status (${response.status})`);
         }
-        const profileData = await response.json();
-        setMerchantProfile(profileData);
+        
+        const statusData = await response.json();
+        console.log('Subscription status received:', statusData);
+        setSubscriptionStatus(statusData);
       } catch (error) {
-        console.error("Error fetching merchant profile:", error);
-        setProfileError(error instanceof Error ? error.message : 'Could not load merchant permissions.');
-        toast.error(error instanceof Error ? error.message : 'Could not load merchant permissions.');
+        console.error("Error fetching subscription status:", error);
+        setSubscriptionError(error instanceof Error ? error.message : 'Could not load subscription status.');
+        toast.error(error instanceof Error ? error.message : 'Could not load subscription status.');
       } finally {
-        setIsProfileLoading(false);
+        setIsSubscriptionLoading(false);
       }
     };
 
-    fetchMerchantProfile();
+    fetchSubscriptionStatus();
   }, [accessToken, user]);
-
 
   const fetchData = useCallback(async () => {
     if (!accessToken) return;
-    setIsLoadingData(true); // Use isLoadingData for products/placements
+    setIsLoadingData(true);
     try {
       // Fetch merchant products
       const productsResponse = await fetch(`${API_BASE_URL}/api/merchant-dashboard/products`, {
@@ -120,14 +139,15 @@ const ProductPlacements: React.FC = () => {
   }, [accessToken]);
 
   useEffect(() => {
-    // Only fetch products/placements if merchant profile is loaded (or if not dependent on it)
-    // If profile loading fails, you might not want to proceed or handle it gracefully
-    if (!isProfileLoading && !profileError) {
-        fetchData();
+    if (!isSubscriptionLoading && !subscriptionError) {
+      fetchData();
     }
-  }, [fetchData, isProfileLoading, profileError]); // Add dependencies
+  }, [fetchData, isSubscriptionLoading, subscriptionError]);
 
-  const canPlacePremium = useMemo(() => merchantProfile?.can_place_premium ?? false, [merchantProfile]);
+  const canPlacePremium = useMemo(() => {
+    console.log('Current subscription status:', subscriptionStatus);
+    return subscriptionStatus?.can_place_premium === true;
+  }, [subscriptionStatus]);
 
   const handleAddPlacement = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -135,9 +155,42 @@ const ProductPlacements: React.FC = () => {
       toast.error('Please select a product.');
       return;
     }
-    if (!canPlacePremium) { // Use the memoized value
-        toast.error('Your subscription does not allow adding premium placements.');
+    if (!canPlacePremium) {
+      toast.error('Your subscription does not allow adding premium placements.');
+      return;
+    }
+
+    // Validate promotional data for promoted products
+    if (selectedPlacementTypeToAdd === 'PROMOTED') {
+      if (!promotionalPrice || isNaN(parseFloat(promotionalPrice)) || parseFloat(promotionalPrice) <= 0) {
+        toast.error('Please enter a valid promotional price.');
         return;
+      }
+      if (!specialStartDate || !specialEndDate) {
+        toast.error('Please select both start and end dates for the promotion.');
+        return;
+      }
+      
+      const startDate = new Date(specialStartDate);
+      const endDate = new Date(specialEndDate);
+      const today = new Date();
+      
+      // Set today's time to start of day for comparison
+      today.setHours(0, 0, 0, 0);
+      startDate.setHours(0, 0, 0, 0);
+      
+      if (startDate < today) {
+        toast.error('Promotion start date cannot be in the past.');
+        return;
+      }
+      if (endDate <= startDate) {
+        toast.error('Promotion end date must be after the start date.');
+        return;
+      }
+      if (endDate > new Date(today.getTime() + (30 * 24 * 60 * 60 * 1000))) {
+        toast.error('Promotion cannot last more than 30 days.');
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -152,6 +205,9 @@ const ProductPlacements: React.FC = () => {
           product_id: parseInt(selectedProductIdToAdd),
           placement_type: selectedPlacementTypeToAdd,
           sort_order: sortOrderToAdd,
+          promotional_price: selectedPlacementTypeToAdd === 'PROMOTED' ? parseFloat(promotionalPrice) : undefined,
+          special_start: selectedPlacementTypeToAdd === 'PROMOTED' ? specialStartDate : undefined,
+          special_end: selectedPlacementTypeToAdd === 'PROMOTED' ? specialEndDate : undefined,
         }),
       });
 
@@ -163,6 +219,9 @@ const ProductPlacements: React.FC = () => {
       toast.success('Product placement added successfully!');
       setSelectedProductIdToAdd('');
       setSortOrderToAdd(0);
+      setPromotionalPrice('');
+      setSpecialStartDate('');
+      setSpecialEndDate('');
       await fetchData();
     } catch (error) {
       console.error("Error adding placement:", error);
@@ -216,50 +275,51 @@ const ProductPlacements: React.FC = () => {
   
   const currentSlotsInfo = selectedPlacementTypeToAdd === 'FEATURED' ? featuredSlots : promotedSlots;
 
- // Combined loading state for initial page readiness
-  if (isProfileLoading || (isLoadingData && merchantProducts.length === 0 && placements.length === 0)) {
+  if (isSubscriptionLoading) {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-accent-500"></div>
-        <p className="ml-3 text-gray-600">Loading page data...</p>
+        <p className="ml-3 text-gray-600">Loading subscription status...</p>
       </div>
     );
   }
   
-  if (profileError) {
+  if (subscriptionError) {
     return (
-        <div className="p-6 bg-red-50 border border-red-200 rounded-lg text-center">
-            <ExclamationTriangleIcon className="h-12 w-12 text-red-500 mx-auto mb-3" />
-            <p className="text-red-700 font-medium">Could not load merchant permissions.</p>
-            <p className="text-red-600 text-sm mt-1">{profileError}</p>
-            <button 
-                onClick={() => window.location.reload()} // Simple reload for now
-                className="mt-4 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"
-            >
-                Try Again
-            </button>
-        </div>
-    )
+      <div className="p-6 bg-red-50 border border-red-200 rounded-lg text-center">
+        <ExclamationTriangleIcon className="h-12 w-12 text-red-500 mx-auto mb-3" />
+        <p className="text-red-700 font-medium">Could not load subscription status.</p>
+        <p className="text-red-600 text-sm mt-1">{subscriptionError}</p>
+        <button 
+          onClick={() => window.location.reload()}
+          className="mt-4 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"
+        >
+          Try Again
+        </button>
+      </div>
+    );
   }
 
-
-
-
-return (
+  return (
     <div className="space-y-8">
       <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Manage Featured & Promoted Products</h1>
 
       <div className="bg-white p-6 rounded-lg shadow-md border border-orange-200">
         <h2 className="text-xl font-semibold text-gray-700 mb-1">Add Product to Placement</h2>
         
-        {!canPlacePremium && ( // Check the fetched & memoized value
-            <div className="mt-4 p-3 bg-orange-50 text-orange-700 border border-orange-200 rounded-md text-sm">
-                <p>
-                    <OutlineStarIcon className="h-5 w-5 inline-block mr-2 text-orange-500" />
-                    Your current plan does not allow premium product placements. 
-                    Please <a href="/business/subscription" className="font-medium underline hover:text-orange-800">upgrade your subscription</a> to use this feature.
-                </p>
-            </div>
+        {!canPlacePremium && (
+          <div className="mt-4 p-3 bg-orange-50 text-orange-700 border border-orange-200 rounded-md text-sm">
+            <p>
+              <OutlineStarIcon className="h-5 w-5 inline-block mr-2 text-orange-500" />
+              {subscriptionStatus?.is_subscribed 
+                ? "Your current subscription plan doesn't include premium placements."
+                : "You need an active subscription to use premium placements."}
+              {' '}
+              <a href="/business/subscription" className="font-medium underline hover:text-orange-800">
+                {subscriptionStatus?.is_subscribed ? 'Upgrade your plan' : 'Subscribe now'}
+              </a>
+            </p>
+          </div>
         )}
 
         <form onSubmit={handleAddPlacement} className="space-y-4 mt-4 max-w-xl">
@@ -304,6 +364,66 @@ return (
             )}
           </div>
 
+          {selectedPlacementTypeToAdd === 'PROMOTED' && (
+            <>
+              <div>
+                <label htmlFor="promotionalPrice" className="block text-sm font-medium text-gray-700 mb-1">
+                  Promotional Price
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
+                  <input
+                    type="number"
+                    id="promotionalPrice"
+                    value={promotionalPrice}
+                    onChange={(e) => setPromotionalPrice(e.target.value)}
+                    min="0.01"
+                    step="0.01"
+                    className="w-full pl-8 p-2 border border-gray-300 rounded-md shadow-sm focus:ring-accent-500 focus:border-accent-500"
+                    placeholder="0.00"
+                    disabled={!canPlacePremium || isSubmitting || currentSlotsInfo.limitReached}
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Enter the special promotional price for this product.</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="specialStartDate" className="block text-sm font-medium text-gray-700 mb-1">
+                    Promotion Start Date
+                  </label>
+                  <input
+                    type="date"
+                    id="specialStartDate"
+                    value={specialStartDate}
+                    onChange={(e) => setSpecialStartDate(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-accent-500 focus:border-accent-500"
+                    disabled={!canPlacePremium || isSubmitting || currentSlotsInfo.limitReached}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">When should the promotion start? (Can start today)</p>
+                </div>
+
+                <div>
+                  <label htmlFor="specialEndDate" className="block text-sm font-medium text-gray-700 mb-1">
+                    Promotion End Date
+                  </label>
+                  <input
+                    type="date"
+                    id="specialEndDate"
+                    value={specialEndDate}
+                    onChange={(e) => setSpecialEndDate(e.target.value)}
+                    min={specialStartDate || new Date().toISOString().split('T')[0]}
+                    max={new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
+                    className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-accent-500 focus:border-accent-500"
+                    disabled={!canPlacePremium || isSubmitting || currentSlotsInfo.limitReached}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">When should the promotion end? (max 30 days)</p>
+                </div>
+              </div>
+            </>
+          )}
+
           <div>
             <label htmlFor="sortOrderToAdd" className="block text-sm font-medium text-gray-700 mb-1">Sort Order</label>
             <input
@@ -339,9 +459,9 @@ return (
                 Adding...
               </>
             ) : (
-                <>
-                    <PlusIcon className="h-5 w-5 mr-2"/> Add to {selectedPlacementTypeToAdd.toLowerCase()}
-                </>
+              <>
+                <PlusIcon className="h-5 w-5 mr-2"/> Add to {selectedPlacementTypeToAdd.toLowerCase()}
+              </>
             )}
           </button>
           {currentSlotsInfo.limitReached && canPlacePremium && (
@@ -388,9 +508,10 @@ return (
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-orange-700 uppercase tracking-wider">Product</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-orange-700 uppercase tracking-wider">Type</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-orange-700 uppercase tracking-wider">Price</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-orange-700 uppercase tracking-wider">Sort Order</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-orange-700 uppercase tracking-wider">Added</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-orange-700 uppercase tracking-wider">Expires</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-orange-700 uppercase tracking-wider">Promotion Period</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-orange-700 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
@@ -412,10 +533,33 @@ return (
                         {placement.placement_type.toUpperCase()}
                       </span>
                     </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      {placement.placement_type === 'promoted' && placement.product_details?.promotional_price ? (
+                        <div className="text-sm">
+                          <span className="text-gray-500 line-through">${placement.product_details.original_price?.toFixed(2)}</span>
+                          <span className="ml-2 text-red-600 font-semibold">${placement.product_details.promotional_price.toFixed(2)}</span>
+                        </div>
+                      ) : (
+                        <span className="text-sm text-gray-500">${placement.product_details?.original_price?.toFixed(2) || 'N/A'}</span>
+                      )}
+                    </td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{placement.sort_order}</td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(placement.added_at).toLocaleDateString()}</td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {placement.expires_at ? new Date(placement.expires_at).toLocaleDateString() : 'Never'}
+                      {placement.placement_type === 'promoted' && placement.product_details?.special_start && placement.product_details?.special_end ? (
+                        <div>
+                          <div className="text-gray-600">
+                            {new Date(placement.product_details.special_start).toLocaleDateString()} - {new Date(placement.product_details.special_end).toLocaleDateString()}
+                          </div>
+                          {new Date(placement.product_details.special_end) > new Date() && (
+                            <div className="text-xs text-red-600">
+                              {Math.ceil((new Date(placement.product_details.special_end).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))} days left
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        'N/A'
+                      )}
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
                       <button
@@ -425,12 +569,12 @@ return (
                         title="Delete Placement"
                       >
                         {isDeleting === placement.placement_id ? (
-                           <svg className="animate-spin h-5 w-5 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                       </svg>
+                          <svg className="animate-spin h-5 w-5 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
                         ) : (
-                            <TrashIcon className="h-5 w-5" />
+                          <TrashIcon className="h-5 w-5" />
                         )}
                       </button>
                     </td>

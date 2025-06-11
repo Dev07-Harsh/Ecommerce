@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { 
-  Search, 
   Filter, 
   Check, 
   X, 
@@ -252,9 +251,6 @@ const MerchantManagement: React.FC = () => {
       {/* Search and filter */}
       <div className="flex flex-col md:flex-row gap-4 mb-6">
         <div className="relative flex-grow">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search size={18} className="text-gray-400" />
-          </div>
           <input
             type="text"
             placeholder="Search merchants by name or email"
@@ -266,9 +262,6 @@ const MerchantManagement: React.FC = () => {
         
         <div className="flex items-center">
           <div className="relative inline-flex items-center">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Filter size={18} className="text-gray-400" />
-            </div>
             <select
               className="pl-10 pr-8 py-2 border border-gray-300 rounded-md appearance-none bg-white"
               value={statusFilter}

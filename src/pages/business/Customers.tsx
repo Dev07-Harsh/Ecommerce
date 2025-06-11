@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { 
-  MagnifyingGlassIcon, 
   FunnelIcon, 
   ArrowUpIcon, 
   ArrowDownIcon,
@@ -293,7 +292,6 @@ const Customers: React.FC = () => {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
             />
-            <MagnifyingGlassIcon className="h-5 w-5 text-gray-400 absolute right-3 top-2.5" />
           </div>
                 <select
             className="block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"

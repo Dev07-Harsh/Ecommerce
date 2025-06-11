@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect } from 'react';
 import { PlusCircle, X, ChevronDown, ChevronUp, ChevronRight, Edit, Trash2, Link } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -45,6 +43,11 @@ interface ICategoryAttribute {
     category_id: number;
     attribute_id: number;
     required_flag: boolean;
+    attribute_details?: {
+        attribute_id: number;
+        name: string;
+        code: string;
+    };
 }
 
 const Attribute: React.FC = () => {
@@ -83,11 +86,22 @@ const Attribute: React.FC = () => {
         value_label: ''
     });
 
+    const [linkedAttributes, setLinkedAttributes] = useState<ICategoryAttribute[]>([]);
+
+    const [searchQuery, setSearchQuery] = useState('');
+
     // Fetch data on component mount
     useEffect(() => {
         fetchAttributes();
         fetchCategories();
     }, []);
+
+    // Fetch attribute values for all attributes when customAttributes changes
+    useEffect(() => {
+        customAttributes.forEach(attr => {
+            fetchAttributeValues(attr.attribute_id);
+        });
+    }, [customAttributes]);
 
     const fetchAttributes = async () => {
         try {
@@ -199,12 +213,6 @@ const Attribute: React.FC = () => {
         }
     };
 
-    useEffect(() => {
-        if (selectedAttribute) {
-            fetchAttributeValues(selectedAttribute);
-        }
-    }, [selectedAttribute]);
-
     // Create new attribute
     const handleAddCustomAttribute = async () => {
         if (newCustomAttribute.name.trim() && newCustomAttribute.code.trim()) {
@@ -261,6 +269,9 @@ const Attribute: React.FC = () => {
                 return;
             }
 
+            // Store current scroll position
+            const scrollPosition = window.scrollY;
+
             const response = await fetch(`${API_BASE_URL}/api/superadmin/attribute-values`, {
                 method: 'POST',
                 headers: {
@@ -289,6 +300,11 @@ const Attribute: React.FC = () => {
             setNewAttributeValue({ value_code: '', value_label: '' });
             setShowAddValueModal(false);
             toast.success('Attribute value added successfully');
+
+            // Restore scroll position after state updates
+            requestAnimationFrame(() => {
+                window.scrollTo(0, scrollPosition);
+            });
         } catch (error) {
             console.error('Error adding attribute value:', error);
             toast.error(error instanceof Error ? error.message : 'Failed to create attribute value');
@@ -321,7 +337,6 @@ const Attribute: React.FC = () => {
 
                 toast.success('Attribute linked to category successfully');
                 setSelectedAttribute(null);
-                setSelectedCategory(null);
                 setRequiredFlag(false);
             } catch (error) {
                 console.error('Error linking attribute to category:', error);
@@ -332,42 +347,25 @@ const Attribute: React.FC = () => {
         }
     };
 
-        // Delete attribute
+    // Delete attribute
     const handleDeleteAttribute = async (attributeId: number) => {
         if (!window.confirm('Are you sure you want to delete this attribute?')) return;
 
         try {
             setLoading(true);
-            const token = localStorage.getItem('access_token');
-            if (!token) {
-                toast.error('Authentication token not found. Please login again.');
-                setLoading(false); // Ensure loading is set to false
-                return;
-            }
-
             const response = await fetch(`${API_BASE_URL}/api/superadmin/attributes/${attributeId}`, {
                 method: 'DELETE',
                 headers: {
-                    'Authorization': `Bearer ${token}`, // Use the token fetched within the function
+                    'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
                 },
             });
-
-            if (response.status === 401) {
-                toast.error('Session expired. Please login again.');
-                // Optionally redirect to login page
-                setLoading(false); // Ensure loading is set to false
-                return;
-            }
 
             if (!response.ok) {
                 const errorData = await response.json();
                 throw new Error(errorData.message || 'Failed to delete attribute');
             }
 
-            // Corrected state update using functional form
-            setCustomAttributes(prevAttributes =>
-                prevAttributes.filter(attr => attr.attribute_id !== attributeId)
-            );
+            setCustomAttributes(customAttributes.filter(attr => attr.attribute_id !== attributeId));
             toast.success('Attribute deleted successfully');
         } catch (error) {
             console.error('Error deleting attribute:', error);
@@ -414,6 +412,49 @@ const Attribute: React.FC = () => {
         });
     };
 
+    // Add new function to fetch linked attributes
+    const fetchLinkedAttributes = async (categoryId: number) => {
+        try {
+            setLoading(true);
+            const token = localStorage.getItem('access_token');
+            if (!token) {
+                toast.error('Authentication token not found. Please login again.');
+                return;
+            }
+
+            const response = await fetch(`${API_BASE_URL}/api/superadmin/categories/${categoryId}/attributes`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (response.status === 401) {
+                toast.error('Session expired. Please login again.');
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch linked attributes');
+            }
+
+            const data = await response.json();
+            setLinkedAttributes(data);
+        } catch (error) {
+            console.error('Error fetching linked attributes:', error);
+            toast.error('Failed to fetch linked attributes');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Update the category selection handler
+    const handleCategorySelect = (categoryId: number) => {
+        setSelectedCategory(categoryId);
+        fetchLinkedAttributes(categoryId);
+    };
+
+    // Update the renderCategoryRows function to use the new handler
     const renderCategoryRows = (category: ICategory, level: number = 0) => {
         const isExpanded = expandedCategories[category.category_id] || false;
         const hasSubcategories = category.subcategories && category.subcategories.length > 0;
@@ -446,11 +487,8 @@ const Attribute: React.FC = () => {
                     <td className="px-6 py-4">{category.slug}</td>
                     <td className="px-6 py-4 text-right">
                         <button 
-                            className="p-1 text-blue-500 hover:text-blue-600 rounded mr-2"
-                            onClick={() => {
-                                setSelectedCategory(category.category_id);
-                                setShowAddCustomAttribute(true);
-                            }}
+                            className="p-1 text-[#FF5733] hover:text-[#FF4500] rounded mr-2"
+                            onClick={() => handleCategorySelect(category.category_id)}
                             title="Link Attribute"
                         >
                             <Link size={16} />
@@ -465,6 +503,41 @@ const Attribute: React.FC = () => {
         );
     };
 
+    // Add function to handle unlinking attributes
+    const handleUnlinkAttribute = async (attributeId: number) => {
+        if (!selectedCategory) return;
+
+        try {
+            setLoading(true);
+            const token = localStorage.getItem('access_token');
+            if (!token) {
+                toast.error('Authentication token not found. Please login again.');
+                return;
+            }
+
+            const response = await fetch(`${API_BASE_URL}/api/superadmin/categories/${selectedCategory}/attributes/${attributeId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to unlink attribute');
+            }
+
+            // Update the linked attributes list
+            setLinkedAttributes(linkedAttributes.filter(attr => attr.attribute_id !== attributeId));
+            toast.success('Attribute unlinked successfully');
+        } catch (error) {
+            console.error('Error unlinking attribute:', error);
+            toast.error('Failed to unlink attribute');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     if (loading) {
         return <div className="p-6">Loading...</div>;
     }
@@ -476,13 +549,13 @@ const Attribute: React.FC = () => {
             <div className="bg-white rounded-lg shadow-md p-6">
                 <div className="flex border-b mb-6">
                     <button
-                        className={`px-4 py-2 mr-4 ${activeTab === 'custom' ? 'border-b-2 border-blue-500 text-blue-500' : 'text-gray-600'}`}
+                        className={`px-4 py-2 mr-4 ${activeTab === 'custom' ? 'border-b-2 border-[#FF5733] text-[#FF5733]' : 'text-gray-600'}`}
                         onClick={() => setActiveTab('custom')}
                     >
                         Custom Attributes
                     </button>
                     <button
-                        className={`px-4 py-2 ${activeTab === 'category' ? 'border-b-2 border-blue-500 text-blue-500' : 'text-gray-600'}`}
+                        className={`px-4 py-2 ${activeTab === 'category' ? 'border-b-2 border-[#FF5733] text-[#FF5733]' : 'text-gray-600'}`}
                         onClick={() => setActiveTab('category')}
                     >
                         Category-Specific Attributes
@@ -493,9 +566,17 @@ const Attribute: React.FC = () => {
                 {activeTab === 'custom' && (
                     <div>
                         <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-lg font-semibold">Custom Attributes</h2>
+                            <div className="flex items-center w-full max-w-md">
+                                <input
+                                    type="text"
+                                    placeholder="Search attributes..."
+                                    value={searchQuery}
+                                    onChange={e => setSearchQuery(e.target.value)}
+                                    className="border border-gray-300 rounded-md px-3 py-2 w-full focus:ring-[#FF5733] focus:border-[#FF5733]"
+                                />
+                            </div>
                             <button
-                                className="bg-blue-500 text-white px-4 py-2 rounded flex items-center"
+                                className="ml-4 bg-[#FF5733] text-white px-4 py-2 rounded flex items-center hover:bg-[#FF4500] transition-colors"
                                 onClick={() => setShowAddCustomAttribute(true)}
                             >
                                 <PlusCircle className="w-4 h-4 mr-1" />
@@ -507,9 +588,15 @@ const Attribute: React.FC = () => {
                             Add values for additional attributes specific to your product.
                         </p>
 
-                        {customAttributes.length > 0 ? (
+                        {(customAttributes.filter(attr =>
+                            attr.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            attr.code.toLowerCase().includes(searchQuery.toLowerCase())
+                        ).length > 0) ? (
                             <div className="space-y-6">
-                                {customAttributes.map((attr) => (
+                                {customAttributes.filter(attr =>
+                                    attr.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                    attr.code.toLowerCase().includes(searchQuery.toLowerCase())
+                                ).map((attr) => (
                                     <div key={attr.attribute_id} className="border rounded-lg p-4">
                                         <div className="flex justify-between items-center mb-4">
                                             <div>
@@ -519,7 +606,7 @@ const Attribute: React.FC = () => {
                                             </div>
                                             <div className="flex space-x-2">
                                                 <button 
-                                                    className="text-blue-500 hover:text-blue-600 p-2"
+                                                    className="text-[#FF5733] hover:text-[#FF4500] p-2"
                                                     onClick={() => {
                                                         setSelectedAttribute(attr.attribute_id);
                                                         setShowAddValueModal(true);
@@ -543,7 +630,7 @@ const Attribute: React.FC = () => {
                                             <div className="flex justify-between items-center mb-2">
                                                 <h4 className="font-medium">Values</h4>
                                                 <button
-                                                    className="text-blue-500 text-sm hover:text-blue-600"
+                                                    className="text-[#FF5733] text-sm hover:text-[#FF4500]"
                                                     onClick={() => {
                                                         setSelectedAttribute(attr.attribute_id);
                                                         setShowAddValueModal(true);
@@ -638,10 +725,36 @@ const Attribute: React.FC = () => {
                                             </div>
                                         </div>
 
+                                        {/* Display Linked Attributes */}
+                                        {linkedAttributes.length > 0 && (
+                                            <div className="mb-6">
+                                                <h4 className="font-medium mb-2">Linked Attributes</h4>
+                                                <div className="space-y-2">
+                                                    {linkedAttributes.map((linkedAttr) => (
+                                                        <div key={linkedAttr.attribute_id} className="bg-gray-50 rounded-lg p-3 flex justify-between items-center">
+                                                            <div>
+                                                                <p className="font-medium">{linkedAttr.attribute_details?.name}</p>
+                                                                <p className="text-xs text-gray-500">{linkedAttr.attribute_details?.code}</p>
+                                                                {linkedAttr.required_flag && (
+                                                                    <span className="text-xs text-[#FF5733] font-medium">Required</span>
+                                                                )}
+                                                            </div>
+                                                            <button
+                                                                className="text-red-500 hover:text-red-600"
+                                                                onClick={() => handleUnlinkAttribute(linkedAttr.attribute_id)}
+                                                            >
+                                                                <X className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
                                         <div className="mb-4">
                                             <label className="block text-sm font-medium mb-2">Select Attribute</label>
                                             <select
-                                                className="w-full p-2 border rounded-md"
+                                                className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-[#FF5733] focus:border-[#FF5733] [&>option]:bg-white [&>option]:text-gray-900 [&>option:checked]:bg-[#FF5733] [&>option:checked]:text-white"
                                                 value={selectedAttribute || ''}
                                                 onChange={(e) => {
                                                     const attrId = parseInt(e.target.value);
@@ -652,31 +765,31 @@ const Attribute: React.FC = () => {
                                                 }}
                                             >
                                                 <option value="">Select an attribute...</option>
-                                                {customAttributes.map(attr => (
-                                                    <option key={attr.attribute_id} value={attr.attribute_id}>
-                                                        {attr.name} ({attr.input_type})
-                                                    </option>
-                                                ))}
+                                                {customAttributes
+                                                    .filter(attr => !linkedAttributes.some(linked => linked.attribute_id === attr.attribute_id))
+                                                    .map(attr => (
+                                                        <option key={attr.attribute_id} value={attr.attribute_id}>
+                                                            {attr.name} ({attr.input_type})
+                                                        </option>
+                                                    ))}
                                             </select>
                                         </div>
 
-                                        {selectedAttribute && (
-                                            <div className="mb-4">
-                                                <label className="flex items-center space-x-2">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={requiredFlag}
-                                                        onChange={(e) => setRequiredFlag(e.target.checked)}
-                                                        className="rounded border-gray-300"
-                                                    />
-                                                    <span className="text-sm">Required for this category</span>
-                                                </label>
-                                            </div>
-                                        )}
+                                        <div className="mb-4">
+                                            <label className="flex items-center space-x-2">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={requiredFlag}
+                                                    onChange={(e) => setRequiredFlag(e.target.checked)}
+                                                    className="rounded border-gray-300 text-[#FF5733] focus:ring-[#FF5733]"
+                                                />
+                                                <span className="text-sm font-medium">Mark as Required</span>
+                                            </label>
+                                        </div>
 
                                         <div className="flex justify-end">
                                             <button
-                                                className="bg-blue-500 text-white px-4 py-2 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                                className="bg-[#FF5733] text-white px-4 py-2 rounded hover:bg-[#FF4500] disabled:opacity-50 disabled:cursor-not-allowed"
                                                 onClick={handleLinkAttributeToCategory}
                                                 disabled={!selectedAttribute || !selectedCategory}
                                             >
@@ -730,60 +843,77 @@ const Attribute: React.FC = () => {
                             </button>
                         </div>
 
-                        <div className="mb-4">
-                            <label className="block text-sm font-medium mb-1">Attribute Code *</label>
-                            <input
-                                type="text"
-                                className="w-full p-2 border rounded-md"
-                                placeholder="Enter attribute code"
-                                value={newCustomAttribute.code}
-                                onChange={(e) => setNewCustomAttribute({ ...newCustomAttribute, code: e.target.value })}
-                            />
-                        </div>
+                        <form onSubmit={(e) => {
+                            e.preventDefault();
+                            handleAddCustomAttribute();
+                        }}>
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium mb-1">Attribute Name *</label>
+                                <input
+                                    type="text"
+                                    className="w-full p-2 border rounded-md"
+                                    placeholder="Enter attribute name"
+                                    value={newCustomAttribute.name}
+                                    onChange={(e) => {
+                                        const name = e.target.value;
+                                        const code = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+                                        setNewCustomAttribute({ 
+                                            ...newCustomAttribute, 
+                                            name: name,
+                                            code: code 
+                                        });
+                                    }}
+                                />
+                            </div>
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium mb-1">Attribute Code *</label>
+                                <input
+                                    type="text"
+                                    className="w-full p-2 border rounded-md"
+                                    placeholder="Enter attribute code"
+                                    value={newCustomAttribute.code}
+                                    onChange={(e) => setNewCustomAttribute({ ...newCustomAttribute, code: e.target.value })}
+                                    readOnly
+                                />
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Code is automatically generated from the attribute name
+                                </p>
+                            </div>
 
-                        <div className="mb-4">
-                            <label className="block text-sm font-medium mb-1">Attribute Name *</label>
-                            <input
-                                type="text"
-                                className="w-full p-2 border rounded-md"
-                                placeholder="Enter attribute name"
-                                value={newCustomAttribute.name}
-                                onChange={(e) => setNewCustomAttribute({ ...newCustomAttribute, name: e.target.value })}
-                            />
-                        </div>
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium mb-1">Attribute Type *</label>
+                                <select
+                                    className="w-full p-2 border rounded-md"
+                                    value={newCustomAttribute.input_type}
+                                    onChange={(e) => setNewCustomAttribute({
+                                        ...newCustomAttribute,
+                                        input_type: e.target.value as AttributeInputType
+                                    })}
+                                >
+                                    {Object.values(AttributeInputType).map((type) => (
+                                        <option key={type} value={type}>
+                                            {type.charAt(0).toUpperCase() + type.slice(1).replace('-', ' ')}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
 
-                        <div className="mb-4">
-                            <label className="block text-sm font-medium mb-1">Attribute Type *</label>
-                            <select
-                                className="w-full p-2 border rounded-md"
-                                value={newCustomAttribute.input_type}
-                                onChange={(e) => setNewCustomAttribute({
-                                    ...newCustomAttribute,
-                                    input_type: e.target.value as AttributeInputType
-                                })}
-                            >
-                                {Object.values(AttributeInputType).map((type) => (
-                                    <option key={type} value={type}>
-                                        {type.charAt(0).toUpperCase() + type.slice(1).replace('-', ' ')}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div className="flex justify-end">
-                            <button
-                                className="bg-gray-300 px-4 py-2 rounded mr-2"
-                                onClick={() => setShowAddCustomAttribute(false)}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                className="bg-blue-500 text-white px-4 py-2 rounded"
-                                onClick={handleAddCustomAttribute}
-                            >
-                                Add Attribute
-                            </button>
-                        </div>
+                            <div className="flex justify-end">
+                                <button
+                                    type="button"
+                                    className="bg-gray-100 text-gray-700 px-4 py-2 rounded hover:bg-gray-200 transition-colors"
+                                    onClick={() => setShowAddCustomAttribute(false)}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="bg-[#FF5733] text-white px-4 py-2 rounded hover:bg-[#FF4500] transition-colors"
+                                >
+                                    Add Attribute
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}
@@ -806,52 +936,58 @@ const Attribute: React.FC = () => {
                             </button>
                         </div>
 
-                        <div className="mb-4">
-                            <label className="block text-sm font-medium mb-1">Value Label *</label>
-                            <input
-                                type="text"
-                                className="w-full p-2 border rounded-md"
-                                placeholder="Enter value label"
-                                value={newAttributeValue.value_label}
-                                onChange={(e) => setNewAttributeValue({
-                                    ...newAttributeValue,
-                                    value_label: e.target.value,
-                                    value_code: e.target.value.toLowerCase().replace(/\s+/g, '_')
-                                })}
-                            />
-                        </div>
+                        <form onSubmit={(e) => {
+                            e.preventDefault();
+                            handleAddAttributeValue();
+                        }}>
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium mb-1">Value Label *</label>
+                                <input
+                                    type="text"
+                                    className="w-full p-2 border rounded-md"
+                                    placeholder="Enter value label"
+                                    value={newAttributeValue.value_label}
+                                    onChange={(e) => setNewAttributeValue({
+                                        ...newAttributeValue,
+                                        value_label: e.target.value,
+                                        value_code: e.target.value.toLowerCase().replace(/\s+/g, '_')
+                                    })}
+                                />
+                            </div>
 
-                        <div className="mb-4">
-                            <label className="block text-sm font-medium mb-1">Value Code</label>
-                            <input
-                                type="text"
-                                className="w-full p-2 border rounded-md"
-                                placeholder="Enter value code (optional)"
-                                value={newAttributeValue.value_code}
-                                onChange={(e) => setNewAttributeValue({
-                                    ...newAttributeValue,
-                                    value_code: e.target.value.toLowerCase().replace(/\s+/g, '_')
-                                })}
-                            />
-                            <p className="text-xs text-gray-500 mt-1">
-                                If not provided, will be generated from the label
-                            </p>
-                        </div>
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium mb-1">Value Code</label>
+                                <input
+                                    type="text"
+                                    className="w-full p-2 border rounded-md"
+                                    placeholder="Enter value code (optional)"
+                                    value={newAttributeValue.value_code}
+                                    onChange={(e) => setNewAttributeValue({
+                                        ...newAttributeValue,
+                                        value_code: e.target.value.toLowerCase().replace(/\s+/g, '_')
+                                    })}
+                                />
+                                <p className="text-xs text-gray-500 mt-1">
+                                    If not provided, will be generated from the label
+                                </p>
+                            </div>
 
-                        <div className="flex justify-end">
-                            <button
-                                className="bg-gray-300 px-4 py-2 rounded mr-2"
-                                onClick={() => setShowAddValueModal(false)}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                className="bg-blue-500 text-white px-4 py-2 rounded"
-                                onClick={handleAddAttributeValue}
-                            >
-                                Add Value
-                            </button>
-                        </div>
+                            <div className="flex justify-end">
+                                <button
+                                    type="button"
+                                    className="bg-gray-100 text-gray-700 px-4 py-2 rounded hover:bg-gray-200 transition-colors"
+                                    onClick={() => setShowAddValueModal(false)}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="bg-[#FF5733] text-white px-4 py-2 rounded hover:bg-[#FF4500] transition-colors"
+                                >
+                                    Add Value
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}

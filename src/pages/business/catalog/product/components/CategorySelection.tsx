@@ -43,7 +43,6 @@ const CategorySelection: React.FC<CategorySelectionProps> = ({
   const [brandRequest, setBrandRequest] = useState({
     brand_name: '',
     description: '',
-    website: '',
   });
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
@@ -139,7 +138,6 @@ const CategorySelection: React.FC<CategorySelectionProps> = ({
       setBrandRequest({
         brand_name: '',
         description: '',
-        website: '',
       });
       setShowBrandRequestForm(false);
     } catch (error) {
@@ -216,7 +214,7 @@ const CategorySelection: React.FC<CategorySelectionProps> = ({
       <div key={category.category_id}>
         <div
           className={`flex items-center py-2 px-4 hover:bg-gray-100 cursor-pointer ${
-            selectedCategoryId === category.category_id ? 'bg-primary-100 text-primary-700 font-medium' : 'text-gray-900'
+            selectedCategoryId === category.category_id ? 'bg-orange-100 text-orange-800 font-medium' : 'text-gray-900'
           }`}
           style={{ paddingLeft: `${level * 1.5 + 1}rem` }}
         >
@@ -259,7 +257,7 @@ const CategorySelection: React.FC<CategorySelectionProps> = ({
             value={brandRequest.brand_name}
             onChange={(e) => setBrandRequest(prev => ({ ...prev, brand_name: e.target.value }))}
             required
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 sm:text-sm p-2"
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 sm:text-sm p-2"
           />
         </div>
         <div>
@@ -272,19 +270,7 @@ const CategorySelection: React.FC<CategorySelectionProps> = ({
             onChange={(e) => setBrandRequest(prev => ({ ...prev, description: e.target.value }))}
             required
             rows={3}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 sm:text-sm p-2"
-          />
-        </div>
-        <div>
-          <label htmlFor="website" className="block text-sm font-medium text-gray-700">
-            Website
-          </label>
-          <input
-            type="url"
-            id="website"
-            value={brandRequest.website}
-            onChange={(e) => setBrandRequest(prev => ({ ...prev, website: e.target.value }))}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 sm:text-sm p-2"
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 sm:text-sm p-2"
           />
         </div>
         {requestError && (
@@ -297,14 +283,14 @@ const CategorySelection: React.FC<CategorySelectionProps> = ({
           <button
             type="button"
             onClick={() => setShowBrandRequestForm(false)}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={isSubmittingRequest}
-            className="px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+            className="px-4 py-2 text-sm font-medium text-white bg-orange-600 border border-transparent rounded-md hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
           >
             {isSubmittingRequest ? 'Submitting...' : 'Submit Request'}
           </button>
@@ -380,7 +366,7 @@ const CategorySelection: React.FC<CategorySelectionProps> = ({
             {!showBrandRequestForm && !isLoadingBrands && !brandsError && (
               <button
                 onClick={() => setShowBrandRequestForm(true)}
-                className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+                className="text-sm text-orange-600 hover:text-orange-700 font-medium"
               >
                 Request Brand
               </button>
@@ -388,7 +374,7 @@ const CategorySelection: React.FC<CategorySelectionProps> = ({
           </div>
           {isLoadingBrands ? (
             <div className="flex items-center justify-center p-4">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-600"></div>
             </div>
           ) : brandsError ? (
             <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
@@ -408,9 +394,7 @@ const CategorySelection: React.FC<CategorySelectionProps> = ({
                 <div
                   key={brand.brand_id}
                   onClick={() => onBrandSelect?.(brand.brand_id)}
-                  className={`px-4 py-3 hover:bg-gray-100 cursor-pointer ${
-                    selectedBrandId === brand.brand_id ? 'bg-primary-100 text-primary-700 font-medium' : 'text-gray-900'
-                  }`}
+                  className={`px-4 py-3 hover:bg-gray-100 cursor-pointer ${ selectedBrandId === brand.brand_id ? 'bg-orange-100 text-orange-800 font-medium' : 'text-gray-900' }`}
                 >
                   <span className="text-sm">{brand.name}</span>
                 </div>
@@ -420,7 +404,7 @@ const CategorySelection: React.FC<CategorySelectionProps> = ({
                   <p>No brands available for this category.</p>
                   <button
                     onClick={() => setShowBrandRequestForm(true)}
-                    className="mt-2 text-primary-600 hover:text-primary-700 text-sm font-medium"
+                    className="mt-2 text-orange-600 hover:text-orange-700 text-sm font-medium"
                   >
                     Request to add a brand
                   </button>

@@ -61,7 +61,7 @@ const AddProduct: React.FC = () => {
   };
 
   return (
-    <div className="max-w-xl mx-auto mt-8 space-y-6">
+    <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-semibold text-gray-900">Add New Product</h1>
         <div className="flex space-x-3">

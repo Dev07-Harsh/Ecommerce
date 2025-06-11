@@ -1,8 +1,9 @@
 // src/components/superadmin/SuperadminHeader.tsx
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Bell, Settings, LogOut, User, Menu } from 'lucide-react';
+import LogoutConfirmationPopup from '../../components/LogoutConfirmationPopup';
 
 interface SuperadminHeaderProps {
   onMenuClick?: () => void;
@@ -11,9 +12,15 @@ interface SuperadminHeaderProps {
 const SuperadminHeader: React.FC<SuperadminHeaderProps> = ({ onMenuClick }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [isLogoutPopupOpen, setIsLogoutPopupOpen] = useState(false);
 
-  const handleLogout = () => {
+  const handleLogoutClick = () => {
+    setIsLogoutPopupOpen(true);
+  };
+
+  const handleLogoutConfirm = () => {
     logout();
+    setIsLogoutPopupOpen(false);
     navigate('/');
   };
 
@@ -64,7 +71,7 @@ const SuperadminHeader: React.FC<SuperadminHeaderProps> = ({ onMenuClick }) => {
                     <div className="text-xs text-orange-400">Superadmin</div>
                   </div>
                   <button
-                    onClick={handleLogout}
+                    onClick={handleLogoutClick}
                     className="ml-4 text-orange-500 hover:text-red-500"
                     title="Logout"
                   >
@@ -74,6 +81,13 @@ const SuperadminHeader: React.FC<SuperadminHeaderProps> = ({ onMenuClick }) => {
               </div>
             </div>
           </div>
+
+          {/* Add the LogoutConfirmationPopup */}
+          <LogoutConfirmationPopup
+            isOpen={isLogoutPopupOpen}
+            onClose={() => setIsLogoutPopupOpen(false)}
+            onConfirm={handleLogoutConfirm}
+          />
         </div>
       </div>
     </header>

@@ -1,181 +1,214 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Package, Search, ArrowRight, Truck, Calendar, MapPin } from 'lucide-react';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 
-interface Order {
-  id: string;
+interface TrackingStep {
   status: string;
-  deliveryDate: string;
-  orderDate: string;
-  productName: string;
-  imageUrl: string;
+  location: string;
+  timestamp: string;
+  description: string;
+}
+
+interface TrackingInfo {
+  orderId: string;
+  status: 'Delivered' | 'In Transit' | 'Processing' | 'Out for Delivery';
+  estimatedDelivery: string;
+  currentLocation: string;
+  steps: TrackingStep[];
 }
 
 const TrackOrder: React.FC = () => {
-  const [searchQuery, setSearchQuery] = useState('');
+  const location = useLocation();
+  const { orderId } = useParams();
+  const [orderNumber, setOrderNumber] = useState('');
+  const [trackingInfo, setTrackingInfo] = useState<TrackingInfo | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
-  
-  // Mock orders data - in a real app this would come from an API
-  const orders: Order[] = [
-    {
-      id: '2468135790',
-      status: 'Delivered',
-      deliveryDate: 'Nov 12, 2024',
-      orderDate: 'Nov 7, 2024',
-      productName: "Women's Fashion",
-      imageUrl: 'https://images.unsplash.com/photo-1434389677669-e08b4cac3105?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80'
-    },
-    {
-      id: '1357924680',
-      status: 'Delivered',
-      deliveryDate: 'Nov 2, 2024',
-      orderDate: 'Oct 28, 2024',
-      productName: "Men's Fashion",
-      imageUrl: 'https://images.unsplash.com/photo-1617137968427-85924c800a22?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80'
+
+  useEffect(() => {
+    // Check for order ID in URL params first
+    if (orderId) {
+      setOrderNumber(orderId);
+      handleTrackOrder(undefined, orderId);
+    } 
+    // If no URL param, check navigation state
+    else {
+      const state = location.state as { orderNumber?: string } | null;
+      if (state?.orderNumber) {
+        setOrderNumber(state.orderNumber);
+        handleTrackOrder(undefined, state.orderNumber);
+      }
     }
-  ];
+  }, [location.state, orderId]);
 
-  const handleOrderClick = (order: Order) => {
-    // You can implement logic here to determine whether to show refund or exchange based on order status
-    navigate(`/refund/${order.id}`, { state: { order } });
+  // Mock tracking data - replace with actual API call
+  const mockTrackingInfo: TrackingInfo = {
+    orderId: '2468135790',
+    status: 'In Transit',
+    estimatedDelivery: 'November 15, 2024',
+    currentLocation: 'Mumbai, Maharashtra',
+    steps: [
+      {
+        status: 'Order Placed',
+        location: 'Online',
+        timestamp: 'Nov 10, 2024 09:30 AM',
+        description: 'Your order has been placed successfully'
+      },
+      {
+        status: 'Order Confirmed',
+        location: 'Delhi, India',
+        timestamp: 'Nov 10, 2024 10:15 AM',
+        description: 'Seller has processed your order'
+      },
+      {
+        status: 'Shipped',
+        location: 'Delhi, India',
+        timestamp: 'Nov 11, 2024 02:30 PM',
+        description: 'Your order has been picked up by courier partner'
+      },
+      {
+        status: 'In Transit',
+        location: 'Mumbai, Maharashtra',
+        timestamp: 'Nov 12, 2024 11:45 AM',
+        description: 'Your order is on the way to the delivery address'
+      }
+    ]
   };
 
-  const handleExchangeClick = (e: React.MouseEvent, order: Order) => {
-    e.stopPropagation(); // Prevent triggering the order click
-    navigate(`/exchange/${order.id}`, { state: { order } });
+  const handleTrackOrder = (e?: React.FormEvent, prefilledOrderNumber?: string) => {
+    if (e) {
+      e.preventDefault();
+    }
+    setError(null);
+
+    const orderNumberToTrack = prefilledOrderNumber || orderNumber;
+
+    if (!orderNumberToTrack.trim()) {
+      setError('Please enter an order number');
+      return;
+    }
+
+    // Mock API call - replace with actual API integration
+    if (orderNumberToTrack === mockTrackingInfo.orderId) {
+      setTrackingInfo(mockTrackingInfo);
+    } else {
+      setError('Order not found. Please check the order number and try again.');
+    }
   };
 
-  const handleRefundClick = (e: React.MouseEvent, order: Order) => {
-    e.stopPropagation(); // Prevent triggering the order click
-    navigate(`/refund/${order.id}`, { state: { order } });
+  const getStatusColor = (status: TrackingInfo['status']) => {
+    switch (status) {
+      case 'Delivered':
+        return 'bg-green-500';
+      case 'In Transit':
+        return 'bg-[#FF4D00]';
+      case 'Processing':
+        return 'bg-yellow-500';
+      case 'Out for Delivery':
+        return 'bg-blue-500';
+      default:
+        return 'bg-gray-500';
+    }
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6">Your Orders</h1>
-      
-      {/* Search and Filter */}
-      <div className="flex gap-4 mb-8">
-        <div className="flex-1 relative">
-          <input
-            type="text"
-            placeholder="Search all orders"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-4 py-2 pl-10 border rounded-lg"
-          />
-          <svg
-            className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
+    <div className="min-h-screen bg-gray-50 py-12">
+      <div className="container mx-auto px-4 max-w-4xl">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold mb-2">Track Your Order</h1>
+          <p className="text-gray-600">Enter your order number to track your package</p>
         </div>
-        <button className="px-4 py-2 border rounded-lg flex items-center gap-2">
-          Filter
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <path d="M6 9l6 6 6-6" />
-          </svg>
-        </button>
-      </div>
 
-      {/* Orders List */}
-      <h2 className="text-xl font-semibold mb-4">Orders</h2>
-      <div className="space-y-6">
-        {orders.map((order) => (
-          <div
-            key={order.id}
-            onClick={() => handleOrderClick(order)}
-            className="border rounded-lg p-6 space-y-4 cursor-pointer hover:border-orange-500 transition-colors"
-          >
-            <div className="flex justify-between items-start">
-              <div className="flex gap-4">
-                <img
-                  src={order.imageUrl}
-                  alt={order.productName}
-                  className="w-20 h-20 object-cover rounded"
-                />
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-semibold">Status: {order.status}</span>
-                  </div>
-                  <p className="text-gray-600 text-sm">Your order has been delivered</p>
-                  <p className="text-gray-600 text-sm">Delivered on {order.deliveryDate}</p>
+        <div className="bg-white rounded-xl shadow-sm p-6 mb-8">
+          <form onSubmit={handleTrackOrder} className="flex gap-4">
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                value={orderNumber}
+                onChange={(e) => setOrderNumber(e.target.value)}
+                placeholder="Enter your order number"
+                className="w-full px-4 py-3 pl-12 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF4D00] focus:border-[#FF4D00]"
+              />
+              <Package className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+            </div>
+            <button
+              type="submit"
+              className="px-6 py-3 bg-[#FF4D00] text-white rounded-lg hover:bg-[#FF4D00]/90 transition-colors flex items-center gap-2"
+            >
+              Track Order
+            </button>
+          </form>
+          {error && (
+            <p className="mt-4 text-red-500 text-sm">{error}</p>
+          )}
+        </div>
+
+        {trackingInfo && (
+          <div className="bg-white rounded-xl shadow-sm p-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <div className="p-4 border rounded-lg">
+                <div className="flex items-center gap-3 mb-2">
+                  <Package className="text-[#FF4D00]" size={24} />
+                  <h3 className="font-medium">Order Status</h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${getStatusColor(trackingInfo.status)}`}></span>
+                  <span className="font-medium">{trackingInfo.status}</span>
                 </div>
               </div>
-              <button
-                onClick={(e) => e.stopPropagation()}
-                className="px-4 py-1 bg-gray-100 rounded-lg text-sm"
-              >
-                Rate
-              </button>
-            </div>
 
-            <div className="flex justify-between items-center">
-              <div>
-                <h3 className="font-medium">{order.productName}</h3>
-                <p className="text-gray-600 text-sm">Order #{order.id}</p>
-                <p className="text-gray-600 text-sm">Order placed on {order.orderDate}</p>
+              <div className="p-4 border rounded-lg">
+                <div className="flex items-center gap-3 mb-2">
+                  <Calendar className="text-[#FF4D00]" size={24} />
+                  <h3 className="font-medium">Estimated Delivery</h3>
+                </div>
+                <p>{trackingInfo.estimatedDelivery}</p>
               </div>
-              <button
-                onClick={(e) => e.stopPropagation()}
-                className="px-4 py-1 bg-gray-100 rounded-lg text-sm"
-              >
-                Invoice
-              </button>
+
+              <div className="p-4 border rounded-lg">
+                <div className="flex items-center gap-3 mb-2">
+                  <MapPin className="text-[#FF4D00]" size={24} />
+                  <h3 className="font-medium">Current Location</h3>
+                </div>
+                <p>{trackingInfo.currentLocation}</p>
+              </div>
             </div>
 
-            <div className="flex justify-between pt-4">
-              <button
-                onClick={(e) => handleExchangeClick(e, order)}
-                className="px-6 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition"
-              >
-                Exchange
-              </button>
-              <button
-                onClick={(e) => handleRefundClick(e, order)}
-                className="px-6 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition"
-              >
-                Refund
-              </button>
+            <div>
+              <h3 className="font-medium mb-6">Tracking History</h3>
+              <div className="space-y-8">
+                {trackingInfo.steps.map((step, index) => (
+                  <div key={index} className="relative flex gap-6">
+                    <div className="flex flex-col items-center">
+                      <div className={`w-4 h-4 rounded-full ${index === trackingInfo.steps.length - 1 ? 'bg-[#FF4D00]' : 'bg-green-500'}`}></div>
+                      {index !== trackingInfo.steps.length - 1 && (
+                        <div className="w-0.5 h-full bg-gray-200 absolute top-4"></div>
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="font-medium">{step.status}</h4>
+                        <span className="text-sm text-gray-500">• {step.location}</span>
+                      </div>
+                      <p className="text-sm text-gray-600 mb-1">{step.description}</p>
+                      <p className="text-sm text-gray-500">{step.timestamp}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-        ))}
-      </div>
+        )}
 
-      {/* Pagination */}
-      <div className="flex justify-center items-center gap-4 mt-8">
-        <button className="p-2 border rounded">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M15 18l-6-6 6-6" />
-          </svg>
-        </button>
-        <button className="w-8 h-8 flex items-center justify-center border rounded bg-black text-white">1</button>
-        <button className="w-8 h-8 flex items-center justify-center">2</button>
-        <button className="w-8 h-8 flex items-center justify-center">3</button>
-        <button className="p-2 border rounded">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M9 18l6-6-6-6" />
-          </svg>
-        </button>
-      </div>
-
-      <div className="flex justify-center mt-6">
-        <button className="px-6 py-2 bg-black text-white rounded-lg">
-          View All Orders
-        </button>
+        <div className="mt-8 text-center">
+          <button
+            onClick={() => navigate('/orders')}
+            className="text-[#FF4D00] hover:text-[#FF4D00]/80 transition-colors flex items-center gap-2 mx-auto"
+          >
+            View All Orders
+            <ArrowRight size={16} />
+          </button>
+        </div>
       </div>
     </div>
   );

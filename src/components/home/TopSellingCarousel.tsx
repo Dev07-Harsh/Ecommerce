@@ -1,180 +1,133 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronUp, ChevronDown, TrendingUp } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { Product } from '../../types';
+import { ChevronUp, ChevronDown } from 'lucide-react';
 
-// Convert top-selling products to Product format
-const topSellingProducts: Product[] = [
-  {
-    id: '1',
-    name: 'Smart Watch',
-    description: 'Track your fitness',
-    image: 'https://images.unsplash.com/photo-1546868871-7041f2a55e12?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=764&q=80',
-    price: 199,
-    originalPrice: 249,
-    currency: 'USD',
-    rating: 4.8,
-    reviews: 189,
-    stock: 15,
-    category: 'electronics',
-  },
-  {
-    id: '2',
-    name: 'Headphones',
-    description: 'Premium sound',
-    image: 'https://images.unsplash.com/photo-1583394838336-acd977736f90?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=768&q=80',
-    price: 99,
-    originalPrice: 129,
-    currency: 'USD',
-    rating: 4.6,
-    reviews: 146,
-    stock: 22,
-    category: 'electronics',
-  },
-  {
-    id: '3',
-    name: 'Gaming Laptop',
-    description: 'Ultimate gaming experience',
-    image: 'https://images.unsplash.com/photo-1585790844043-5f2015e0dff1?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1471&q=80',
-    price: 899,
-    originalPrice: 1049,
-    currency: 'USD',
-    rating: 4.9,
-    reviews: 112,
-    stock: 8,
-    category: 'electronics',
-  },
-  {
-    id: '4',
-    name: 'Wireless Controller',
-    description: 'Precision gaming control',
-    image: 'https://images.unsplash.com/photo-1592840496694-26d035b52b48?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=870&q=80',
-    price: 59,
-    originalPrice: 79,
-    currency: 'USD',
-    rating: 4.7,
-    reviews: 178,
-    stock: 34,
-    category: 'electronics',
-  },
-  {
-    id: '5',
-    name: 'Gaming Mouse',
-    description: 'High precision gaming',
-    image: 'https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=765&q=80',
-    price: 49,
-    originalPrice: 69,
-    currency: 'USD',
-    rating: 4.5,
-    reviews: 98,
-    stock: 12,
-    category: 'electronics',
-  },
-];
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
+interface ICarouselItem {
+  id: number;
+  type: 'brand' | 'product' | 'promo' | 'new' | 'featured';
+  image_url: string;
+  shareable_link: string;
+  display_order: number;
+  is_active: boolean;
+}
 
 const TopSellingCarousel: React.FC = () => {
+  const [carouselItems, setCarouselItems] = useState<ICarouselItem[]>([]);
   const [current, setCurrent] = useState(0);
-  const [direction, setDirection] = useState('next');
+  const [direction, setDirection] = useState<'next' | 'prev'>('next');
   const [sliding, setSliding] = useState(false);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrent((prev) => (prev + 1) % topSellingProducts.length);
-    }, 2500); // Auto-scroll every 2.5 seconds
-    return () => clearInterval(interval);
+    fetchCarouselItems();
   }, []);
+
+  useEffect(() => {
+    if (carouselItems.length === 0) return;
+    const interval = setInterval(() => {
+      setCurrent((prev) => (prev + 1) % carouselItems.length);
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [carouselItems]);
+
+  const fetchCarouselItems = async () => {
+    try {
+      // Fetch all product group types
+      const response = await fetch(`${API_BASE_URL}/api/homepage/carousels?type=promo,new,featured`);
+      if (!response.ok) throw new Error('Failed to fetch carousel items');
+      const data = await response.json();
+      // Filter active items and sort by display_order
+      const activeItems = data
+        .filter((item: ICarouselItem) => item.is_active)
+        .sort((a: ICarouselItem, b: ICarouselItem) => a.display_order - b.display_order);
+      setCarouselItems(activeItems);
+    } catch (error) {
+      console.error('Error fetching carousel items:', error);
+    }
+  };
 
   const slide = (direction: 'prev' | 'next', targetIndex: number) => {
     if (sliding) return;
-    
     setDirection(direction);
     setSliding(true);
-    
     setTimeout(() => {
       setCurrent(targetIndex);
       setSliding(false);
-    }, 400); // Match duration with CSS transition
+    }, 400);
   };
 
   const handlePrev = (e?: React.MouseEvent) => {
     e?.stopPropagation();
-    const targetIndex = (current - 1 + topSellingProducts.length) % topSellingProducts.length;
+    const targetIndex = (current - 1 + carouselItems.length) % carouselItems.length;
     slide('prev', targetIndex);
   };
 
   const handleNext = (e?: React.MouseEvent) => {
     e?.stopPropagation();
-    const targetIndex = (current + 1) % topSellingProducts.length;
+    const targetIndex = (current + 1) % carouselItems.length;
     slide('next', targetIndex);
   };
 
   const getItemStyle = (index: number) => {
-    // Only 3 items get special positioning: current, previous, and next
     if (index === current) {
       return 'translate-y-0 opacity-100 z-20';
-    } else if (sliding && 
-      ((direction === 'next' && index === (current + 1) % topSellingProducts.length) || 
-       (direction === 'prev' && index === (current - 1 + topSellingProducts.length) % topSellingProducts.length))) {
+    } else if (
+      sliding &&
+      ((direction === 'next' && index === (current + 1) % carouselItems.length) ||
+        (direction === 'prev' && index === (current - 1 + carouselItems.length) % carouselItems.length))
+    ) {
       return `${direction === 'next' ? 'translate-y-full' : '-translate-y-full'} opacity-100 z-10`;
     }
     return 'translate-y-full opacity-0 -z-10';
   };
 
+  if (carouselItems.length === 0) {
+    return (
+      <div className="h-full flex flex-col justify-between rounded-lg shadow-sm overflow-hidden border border-gray-100">
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#FF5733]"></div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="h-full flex flex-col justify-between rounded-lg shadow-sm overflow-hidden border border-gray-100">
-      {/* Main carousel content with purple background */}
+    <div className="h-full flex flex-col justify-between rounded-lg shadow-sm overflow-hidden border border-gray-100 relative">
+      {/* Main carousel content */}
       <div className="flex-grow overflow-hidden relative">
-        {topSellingProducts.map((product, idx) => (
-          <div 
-            key={product.id}
-            className={`absolute inset-0 w-full h-full transform transition-transform duration-400 ease-in-out ${getItemStyle(idx)}`}
+        {carouselItems.map((item, idx) => (
+          <div
+            key={item.id}
+            className={`absolute inset-0 w-full h-full transition-transform duration-400 ease-in-out ${getItemStyle(idx)}`}
           >
-            <div className="flex flex-col h-full bg-purple-500 text-white relative">
-              {/* Brand Label */}
-              <div className="pt-6 pb-1 px-6 text-center">
-                <p className="text-sm font-medium text-white/80">
-                  {product.category === 'electronics' ? 'Asus' : product.category}
-                </p>
-              </div>
-
-              {/* Product Banner Content */}
-              <div className="px-6 text-center">
-                <h2 className="text-2xl font-semibold mb-1">
-                  Supper Sale
-                </h2>
-                <h3 className="text-xl font-medium mb-6">
-                  {product.name}
-                </h3>
-              </div>
-
-              {/* Product Image */}
-              <div className="flex-grow flex items-center justify-center px-6 py-4">
-                <img 
-                  src={product.image}
-                  alt={product.name} 
-                  className="max-h-44 object-contain"
-                />
-              </div>
-
-              {/* CTA Button */}
-              <div className="px-6 pb-8 text-center">
-                <Link 
-                  to={`/product/${product.id}`}
-                  className="inline-block bg-orange-500 hover:bg-orange-600 text-white font-medium px-6 py-2 rounded-md transition-colors"
-                >
-                  Order Now
-                </Link>
-              </div>
-
-              {/* Navigation dots (now at bottom) */}
-              <div className="absolute bottom-2 left-0 right-0 flex justify-center items-center">
-                {topSellingProducts.map((_, dotIdx) => (
-                  <div 
+            {/* Full background image */}
+            <img
+              src={item.image_url}
+              alt={item.type === 'promo' ? 'Promo Products' : 
+                   item.type === 'new' ? 'New Products' : 
+                   'Featured Products'}
+              className="absolute inset-0 w-full h-full object-cover z-0"
+              style={{ borderRadius: 'inherit' }}
+            />
+            {/* Overlay content */}
+            <div className="flex flex-col h-full justify-end items-center relative z-10 pb-8">
+              <a
+                href={item.shareable_link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block bg-orange-500 hover:bg-orange-600 text-white font-medium px-6 py-2 rounded-md transition-colors shadow-lg mb-4"
+              >
+                {item.type === 'promo' ? 'View Promo Products' :
+                 item.type === 'new' ? 'View New Products' :
+                 'View Featured Products'}
+              </a>
+              {/* Navigation dots */}
+              <div className="flex justify-center items-center mb-2">
+                {carouselItems.map((_, dotIdx) => (
+                  <div
                     key={dotIdx}
                     className={`w-2 h-2 mx-0.5 rounded-full transition-all duration-300 ${
-                      current === dotIdx 
-                        ? 'bg-white' 
-                        : 'bg-white/40 hover:bg-white/60'
+                      current === dotIdx ? 'bg-white' : 'bg-white/40 hover:bg-white/60'
                     }`}
                     onClick={() => !sliding && setCurrent(dotIdx)}
                     role="button"
@@ -186,20 +139,19 @@ const TopSellingCarousel: React.FC = () => {
           </div>
         ))}
       </div>
-      
       {/* Navigation arrows */}
-      <div className="absolute top-1/2 left-0 -translate-y-1/2">
-        <button 
-          onClick={(e) => handlePrev(e)} 
+      <div className="absolute top-1/2 left-0 -translate-y-1/2 z-20">
+        <button
+          onClick={(e) => handlePrev(e)}
           className="bg-white/10 hover:bg-white/20 p-1 flex items-center justify-center transition-colors text-white"
           disabled={sliding}
         >
           <ChevronUp size={16} />
         </button>
       </div>
-      <div className="absolute top-1/2 right-0 -translate-y-1/2">
-        <button 
-          onClick={(e) => handleNext(e)} 
+      <div className="absolute top-1/2 right-0 -translate-y-1/2 z-20">
+        <button
+          onClick={(e) => handleNext(e)}
           className="bg-white/10 hover:bg-white/20 p-1 flex items-center justify-center transition-colors text-white"
           disabled={sliding}
         >

@@ -11,15 +11,15 @@ const LiveShop: React.FC = () => {
       <div className="max-w-[1440px] mx-auto px-16">
         {/* All sections */}
         <div className="space-y-16">
-          <AoinLive />
-          <ComingSoon />
-          <Fashion />
-          <FashionFactory />
-          <SundayFunday />
+          <AoinLive layout="row" />
+          <ComingSoon layout="row" />
+          <Fashion layout="row" />
+          <FashionFactory layout="row" />
+          <SundayFunday layout="row" />
         </div>
       </div>
     </div>
   );
 };
 
-export default LiveShop; 
+export default LiveShop;

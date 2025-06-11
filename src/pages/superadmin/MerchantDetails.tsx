@@ -57,45 +57,53 @@ interface Merchant {
 
 // documentTypeMapping - from your initial code
 const documentTypeMapping: { [key: string]: string } = {
-  'BUSINESS_REGISTRATION_IN': 'Business Registration (India)',
-  'BUSINESS_REGISTRATION_GLOBAL': 'Business Registration (Global)',
-  'PAN_CARD': 'PAN Card',
-  'GSTIN': 'GSTIN Certificate',
-  'AADHAR': 'Aadhar Card',
-  'BUSINESS_ADDRESS_PROOF_IN': 'Business Address Proof (India)',
-  'BUSINESS_ADDRESS_PROOF_GLOBAL': 'Business Address Proof (Global)',
-  'CANCELLED_CHEQUE': 'Cancelled Cheque',
-  'BANK_ACCOUNT_IN': 'Bank Account Details (India)',
-  'BANK_ACCOUNT_GLOBAL': 'Bank Account Details (Global)',
-  'GST_CERTIFICATE': 'GST Certificate',
-  'MSME_CERTIFICATE': 'MSME Certificate',
-  'DSC': 'Digital Signature Certificate',
-  'TAX_ID_GLOBAL': 'Tax ID (Global)',
-  'SALES_TAX_REG': 'Sales Tax Registration',
-  'PASSPORT': 'Passport',
-  'SALES_TAX_PERMIT': 'Sales Tax Permit',
-  'SMALL_BUSINESS_CERT': 'Small Business Certificate',
-  'ESIGN_CERTIFICATE': 'E-Sign Certificate',
-  'RETURN_POLICY': 'Return Policy',
-  'SHIPPING_DETAILS': 'Shipping Details'
+  business_registration_in: 'Business Registration (India)',
+  business_registration_global: 'Business Registration (Global)',
+  pan_card: 'PAN Card',
+  gstin: 'GSTIN Certificate',
+  aadhar: 'Aadhar Card',
+  business_address_proof_in: 'Business Address Proof (India)',
+  business_address_proof_global: 'Business Address Proof (Global)',
+  cancelled_cheque: 'Cancelled Cheque',
+  bank_account_in: 'Bank Account Details (India)',
+  bank_account_global: 'Bank Account Details (Global)',
+  gst_certificate: 'GST Certificate',
+  msme_certificate: 'MSME Certificate',
+  dsc: 'Digital Signature Certificate',
+  tax_id_global: 'Tax ID (Global)',
+  sales_tax_reg: 'Sales Tax Registration',
+  passport: 'Passport',
+  sales_tax_permit: 'Sales Tax Permit',
+  small_business_cert: 'Small Business Certificate',
+  esign_certificate: 'E-Sign Certificate',
+  return_policy: 'Return Policy',
+  shipping_details: 'Shipping Details',
+  product_list: 'Product List',
+  category_list: 'Category List',
+  brand_approval: 'Brand Approval',
+  brand_authorization: 'Brand Authorization'
 };
 
 // documentKeyMapping - from your initial code (not actively used in MerchantDetails but kept for completeness if needed elsewhere)
 const documentKeyMapping: { [key: string]: string } = {
-  'Business Registration': 'BUSINESS_REGISTRATION_IN',
-  'PAN Card': 'PAN_CARD',
-  'GSTIN Certificate': 'GSTIN',
-  'Identity Proof': 'AADHAR',
-  'Address Proof': 'BUSINESS_ADDRESS_PROOF_IN',
-  'Cancelled Cheque': 'CANCELLED_CHEQUE',
-  'GST Certificate': 'GST_CERTIFICATE',
-  'MSME Certificate': 'MSME_CERTIFICATE',
-  'Digital Signature': 'DSC',
-  'Return Policy': 'RETURN_POLICY',
-  'Shipping Details': 'SHIPPING_DETAILS'
+  'Business Registration': 'business_registration_in',
+  'PAN Card': 'pan_card',
+  'GSTIN Certificate': 'gstin',
+  'Identity Proof': 'aadhar',
+  'Address Proof': 'business_address_proof_in',
+  'Cancelled Cheque': 'cancelled_cheque',
+  'GST Certificate': 'gst_certificate',
+  'MSME Certificate': 'msme_certificate',
+  'Digital Signature': 'dsc',
+  'Return Policy': 'return_policy',
+  'Shipping Details': 'shipping_details',
+  'Product List': 'product_list',
+  'Category List': 'category_list',
+  'Brand Approval': 'brand_approval',
+  'Brand Authorization': 'brand_authorization'
 };
 
-// DocumentViewer Component - EXACTLY from your initial code
+// DocumentViewer Component
 const DocumentViewer: React.FC<{
   documents: Document[];
   onClose: () => void;
@@ -107,6 +115,7 @@ const DocumentViewer: React.FC<{
   const [currentDocKey, setCurrentDocKey] = useState(initialDocKey);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
   
   const documentKeys = documents.map(doc => doc.id.toString());
   const currentIndex = documentKeys.indexOf(currentDocKey);
@@ -114,12 +123,14 @@ const DocumentViewer: React.FC<{
   const goToNext = () => {
     if (currentIndex < documentKeys.length - 1) {
       setCurrentDocKey(documentKeys[currentIndex + 1]);
+      setIsLoading(true);
     }
   };
   
   const goToPrevious = () => {
     if (currentIndex > 0) {
       setCurrentDocKey(documentKeys[currentIndex - 1]);
+      setIsLoading(true);
     }
   };
   
@@ -127,6 +138,17 @@ const DocumentViewer: React.FC<{
   const documentId = currentDoc?.id;
   const documentStatus = currentDoc?.status.toLowerCase() || '';
   
+  const isPDF = currentDoc?.mime_type === 'application/pdf' || currentDoc?.file_name.toLowerCase().endsWith('.pdf');
+  const isImage = currentDoc?.mime_type.startsWith('image/') || 
+                 (currentDoc?.file_name.toLowerCase().endsWith('.jpg') || 
+                  currentDoc?.file_name.toLowerCase().endsWith('.jpeg') || 
+                  currentDoc?.file_name.toLowerCase().endsWith('.png'));
+  const isExcel = currentDoc?.mime_type === 'application/vnd.ms-excel' || 
+                 currentDoc?.mime_type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+                 currentDoc?.file_name.toLowerCase().endsWith('.xlsx') ||
+                 currentDoc?.file_name.toLowerCase().endsWith('.xls');
+  const isCSV = currentDoc?.mime_type === 'text/csv' || currentDoc?.file_name.toLowerCase().endsWith('.csv');
+
   const handleApprove = () => {
     if (documentId) {
       onApprove(documentId);
@@ -147,13 +169,105 @@ const DocumentViewer: React.FC<{
     } else if (showRejectModal) {
       setRejectionReason('');
     }
-  }, [showRejectModal, documentStatus, currentDoc?.admin_notes, currentDocKey]); // Added currentDocKey
-  
-  useEffect(() => { // Ensure initialDocKey updates currentDocKey
+  }, [showRejectModal, documentStatus, currentDoc?.admin_notes, currentDocKey]);
+
+  useEffect(() => {
     setCurrentDocKey(initialDocKey);
+    setIsLoading(true);
   }, [initialDocKey]);
 
-  if (!currentDoc) { // Added a fallback if currentDoc is somehow not found
+  useEffect(() => {
+    if (currentDoc) {
+      console.debug('DocumentViewer: currentDoc', currentDoc);
+      if (currentDoc.file_url) {
+        console.debug('DocumentViewer: file_url', currentDoc.file_url);
+      }
+    }
+  }, [currentDoc]);
+
+  const renderDocumentPreview = () => {
+    if (!currentDoc?.file_url) {
+      return (
+        <div className="text-gray-500 text-center p-8">
+          <FileText size={48} className="mx-auto mb-3 text-gray-400"/>
+          <p className="text-lg">No preview available</p>
+        </div>
+      );
+    }
+
+    if (isPDF) {
+      return (
+        <div className="w-full h-[calc(95vh-250px)] relative">
+          {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+              <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
+            </div>
+          )}
+          <iframe
+            src={currentDoc.file_url}
+            className="w-full h-full border-0"
+            title={documentTypeMapping[currentDoc.document_type] || currentDoc.document_type}
+            onLoad={() => {
+              setIsLoading(false);
+              console.debug('PDF iframe loaded:', currentDoc.file_url);
+            }}
+          />
+        </div>
+      );
+    }
+
+    if (isImage) {
+      return (
+        <div className="w-full h-[calc(95vh-250px)] relative">
+          {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+              <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
+            </div>
+          )}
+          <img 
+            src={currentDoc.file_url} 
+            alt={documentTypeMapping[currentDoc.document_type] || currentDoc.document_type}
+            className="max-w-full max-h-full object-contain"
+            onLoad={() => setIsLoading(false)}
+          />
+        </div>
+      );
+    }
+
+    // For Excel and CSV files
+    return (
+      <div className="text-center p-8">
+        <FileText size={48} className="mx-auto mb-3 text-gray-400"/>
+        <p className="text-lg text-gray-600">
+          {isExcel ? 'Excel Spreadsheet' : isCSV ? 'CSV File' : 'Document'} Preview
+        </p>
+        <p className="text-sm text-gray-500 mb-4">
+          {currentDoc.file_name}
+        </p>
+        <div className="flex justify-center space-x-4">
+          <a 
+            href={currentDoc.file_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+          >
+            <FileText size={16} className="mr-2" />
+            View File
+          </a>
+          <a 
+            href={currentDoc.file_url}
+            download={currentDoc.file_name}
+            className="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+          >
+            <FileText size={16} className="mr-2" />
+            Download
+          </a>
+        </div>
+      </div>
+    );
+  };
+
+  if (!currentDoc) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-lg p-6 text-center">
@@ -172,7 +286,7 @@ const DocumentViewer: React.FC<{
   
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-2 sm:p-4">
-      <div className="bg-white rounded-lg w-full max-w-6xl mx-auto max-h-[95vh] flex flex-col"> {/* Adjusted max-h */}
+      <div className="bg-white rounded-lg w-full max-w-6xl mx-auto max-h-[95vh] flex flex-col">
         <div className="flex justify-between items-center p-3 sm:p-4 border-b">
           <div>
             <h3 className="text-lg sm:text-xl font-semibold truncate" title={documentTypeMapping[currentDoc.document_type] || currentDoc.document_type}>
@@ -190,18 +304,7 @@ const DocumentViewer: React.FC<{
         </div>
         
         <div className="p-2 sm:p-4 flex-1 overflow-auto flex items-center justify-center bg-gray-100 min-h-[300px]">
-          {currentDoc.file_url ? (
-            <img 
-              src={currentDoc.file_url} 
-              alt={documentTypeMapping[currentDoc.document_type] || currentDoc.document_type}
-              className="max-w-full max-h-[calc(95vh-250px)] object-contain" // Dynamic max-height
-            />
-          ) : (
-            <div className="text-gray-500 text-center p-8">
-                <FileText size={48} className="mx-auto mb-3 text-gray-400"/>
-                <p className="text-lg">No preview available</p>
-            </div>
-          )}
+          {renderDocumentPreview()}
         </div>
         
         {currentDoc.file_name && (
@@ -209,13 +312,13 @@ const DocumentViewer: React.FC<{
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
               <div><span className="text-gray-600">File:</span> <span className="font-medium break-all">{currentDoc.file_name}</span></div>
               {currentDoc.file_size > 0 && (
-                 <div><span className="text-gray-600">Size:</span> <span className="font-medium">{(currentDoc.file_size / 1024).toFixed(2)} KB</span></div>
+                <div><span className="text-gray-600">Size:</span> <span className="font-medium">{(currentDoc.file_size / 1024).toFixed(2)} KB</span></div>
               )}
               {currentDoc.verified_at && (
                 <div><span className="text-gray-600">Verified:</span> <span className="font-medium">{new Date(currentDoc.verified_at).toLocaleString()}</span></div>
               )}
               {documentStatus === 'rejected' && currentDoc.admin_notes && (
-                 <div className="sm:col-span-2"><span className="text-gray-600">Reason:</span> <span className="font-medium text-red-600">{currentDoc.admin_notes}</span></div>
+                <div className="sm:col-span-2"><span className="text-gray-600">Reason:</span> <span className="font-medium text-red-600">{currentDoc.admin_notes}</span></div>
               )}
             </div>
           </div>
@@ -223,8 +326,7 @@ const DocumentViewer: React.FC<{
         
         <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
-            {/* Removed the status badge display from here as it's in the header */}
-            <div className="flex items-center self-start sm:self-center"> 
+            <div className="flex items-center self-start sm:self-center">
               {/* Placeholder if needed in future */}
             </div>
             <div className="flex justify-end space-x-3 w-full sm:w-auto">
@@ -232,8 +334,8 @@ const DocumentViewer: React.FC<{
                 onClick={() => setShowRejectModal(true)}
                 disabled={isActionLoading}
                 className={`w-full sm:w-auto px-4 py-2 text-sm font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed
-                            ${documentStatus === 'rejected' ? 'bg-red-500 text-white hover:bg-red-600 focus:ring-2 focus:ring-red-500' 
-                                                            : 'bg-red-100 text-red-700 hover:bg-red-200 focus:ring-2 focus:ring-red-300'}`}
+                          ${documentStatus === 'rejected' ? 'bg-red-500 text-white hover:bg-red-600 focus:ring-2 focus:ring-red-500' 
+                                                          : 'bg-red-100 text-red-700 hover:bg-red-200 focus:ring-2 focus:ring-red-300'}`}
               >
                 {documentStatus === 'rejected' ? 'Update Rejection' : 'Reject Document'}
               </button>
@@ -241,8 +343,8 @@ const DocumentViewer: React.FC<{
                 onClick={handleApprove}
                 disabled={isActionLoading || documentStatus === 'approved'}
                 className={`w-full sm:w-auto px-4 py-2 text-sm font-medium rounded-md transition-colors text-white disabled:opacity-50 
-                            ${documentStatus === 'approved' ? 'bg-green-500 cursor-not-allowed' 
-                                                             : 'bg-green-600 hover:bg-green-700 focus:ring-2 focus:ring-green-500'}`}
+                          ${documentStatus === 'approved' ? 'bg-green-500 cursor-not-allowed' 
+                                                         : 'bg-green-600 hover:bg-green-700 focus:ring-2 focus:ring-green-500'}`}
               >
                 {documentStatus === 'approved' ? 'Approved' : 'Approve Document'}
               </button>
@@ -255,7 +357,7 @@ const DocumentViewer: React.FC<{
             onClick={goToPrevious}
             disabled={currentIndex === 0 || isActionLoading}
             className={`flex items-center px-2 py-1.5 rounded-md text-sm transition-colors disabled:text-gray-300 disabled:cursor-not-allowed 
-                        ${currentIndex !== 0 ? 'text-blue-600 hover:text-blue-700 hover:bg-blue-50 focus:outline-none focus:ring-1 focus:ring-blue-400' : 'text-gray-400'}`}
+                      ${currentIndex !== 0 ? 'text-blue-600 hover:text-blue-700 hover:bg-blue-50 focus:outline-none focus:ring-1 focus:ring-blue-400' : 'text-gray-400'}`}
           >
             <ChevronLeft size={20} />
             <span className="hidden sm:inline ml-1">Previous</span>
@@ -267,7 +369,7 @@ const DocumentViewer: React.FC<{
             onClick={goToNext}
             disabled={currentIndex === documentKeys.length - 1 || isActionLoading}
             className={`flex items-center px-2 py-1.5 rounded-md text-sm transition-colors disabled:text-gray-300 disabled:cursor-not-allowed
-                        ${currentIndex !== documentKeys.length - 1 ? 'text-blue-600 hover:text-blue-700 hover:bg-blue-50 focus:outline-none focus:ring-1 focus:ring-blue-400' : 'text-gray-400'}`}
+                      ${currentIndex !== documentKeys.length - 1 ? 'text-blue-600 hover:text-blue-700 hover:bg-blue-50 focus:outline-none focus:ring-1 focus:ring-blue-400' : 'text-gray-400'}`}
           >
             <span className="hidden sm:inline mr-1">Next</span>
             <ChevronRight size={20} />
@@ -275,10 +377,11 @@ const DocumentViewer: React.FC<{
         </div>
       </div>
       
+      {/* Rejection Modal */}
       {showRejectModal && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-[60]">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <div className="flex items-start text-red-600 mb-4"> {/* items-start for better alignment */}
+            <div className="flex items-start text-red-600 mb-4">
               <AlertCircle size={22} className="mr-2 mt-0.5 flex-shrink-0" />
               <h3 className="text-lg font-semibold">Reject Document</h3>
             </div>
