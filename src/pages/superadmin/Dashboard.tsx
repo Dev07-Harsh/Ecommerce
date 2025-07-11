@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
+import YouTubeNotification from '../../components/YouTubeNotification';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -543,6 +544,9 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6">
+      {/* YouTube Integration Notification */}
+      <YouTubeNotification />
+      
       {/* Header */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">

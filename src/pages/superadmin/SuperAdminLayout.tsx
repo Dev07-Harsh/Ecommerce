@@ -154,6 +154,11 @@ export const dashboardSections: MenuSection[] = [
         icon: ShieldCheck,
         description: "Manage merchant subscriptions",
       },
+      {
+        title: "YouTube Integration",
+        icon: ActivitySquare,
+        description: "Manage YouTube Live streaming integration and settings",
+      },
     ],
   },
   /*

@@ -75,6 +75,7 @@ import SuperAdminLayout from './pages/superadmin/SuperAdminLayout';
 import MerchantDetails from './pages/superadmin/MerchantDetails';
 import SuperAdminLogin from './pages/superadmin/SuperAdminLogin';
 import Profile from './pages/superadmin/Profile';
+import YouTubeManagement from './pages/superadmin/YouTubeManagement';
 import Brands from './components/home/brands';
 import Inventory from './pages/business/Inventory';
 import VerificationStatus from './pages/business/VerificationStatus';
@@ -467,7 +468,8 @@ const App: React.FC = () => {
                     <Route path="promotions" element={<Promotions />} />
                     <Route path="gst-management" element={<GSTRuleManagement />} />
                     <Route path="profile" element={<Profile />} />
-<Route path="merchant-subscriptions" element={<MerchantSubscription />} />
+                    <Route path="merchant-subscriptions" element={<MerchantSubscription />} />
+                    <Route path="youtube-integration" element={<YouTubeManagement />} />
                   </Route>
 
                     {/* Public Routes with header/footer */}
